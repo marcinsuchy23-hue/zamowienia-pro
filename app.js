@@ -1,5 +1,5 @@
 (() => {
-  const LS_KEY = "zamowienia_pro_v1";
+  const LS_KEY = "zamowienia_pro_v3";
   const DEFAULT_CATS = ["Warzywa","Mięso","Nabiał","Mrożonki","Suchy magazyn","Przyprawy","Owoce","Ryby","Inne"];
   const DEFAULT_SECTIONS = ["Grill","Palniki","Zimna","Wydawka"];
   const TZ = "Europe/Warsaw";
