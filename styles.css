@@ -296,11 +296,11 @@ textarea{
   .order-actions .btn{min-width:0; padding:10px 10px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
   #btnGoCatalog, #btnGoExport{justify-content:center;}
 
-  .order-row3{margin-top:10px; display:grid; grid-template-columns: minmax(0,1fr) minmax(118px,auto); gap:10px;}
+  /* iOS/Safari grid sizing: allow the search field to shrink instead of being clipped/hidden */
+  .order-row3{margin-top:10px; display:grid; grid-template-columns: minmax(0,1fr) auto; gap:10px;}
   .order-row3 .field{min-width:0;}
-  /* IMPORTANT: do NOT force 100% width in a grid "auto" column,
-     because it can steal space from the search input on iOS */
-  #btnCart{width:auto; min-width:118px; justify-content:center; white-space:nowrap;}
+  .order-row3 input{min-width:0; width:100%;}
+  #btnCart{width:100%; justify-content:center;}
 
   /* Make refresh truly icon-only */
   #btnQuickRefresh{font-size:18px;}

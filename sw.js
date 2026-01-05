@@ -1,4 +1,5 @@
-const CACHE_NAME = "zamowienia-pro-pwa-v3-mobileheader";
+// Bump on every deploy: forces iOS/Safari to pick up the new UI
+const CACHE_NAME = "zamowienia-pro-pwa-v5-mobileheader-searchgrid";
 const ASSETS = [
   "./",
   "./index.html",
@@ -25,6 +26,20 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
+
+  // Always network-first for page navigations (prevents "stara wersja" on iPhone)
+  if (event.request.mode === "navigate") {
+    event.respondWith(
+      fetch(event.request)
+        .then((res) => {
+          const copy = res.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put("./index.html", copy));
+          return res;
+        })
+        .catch(() => caches.match("./index.html"))
+    );
+    return;
+  }
 
   // For core app shell: try network first so updates land quickly
   const isAppShell = url.pathname.endsWith("/") ||
