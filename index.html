@@ -22,8 +22,9 @@
 
   <main class="app">
     <section class="panel" id="panelOrder">
-      <div class="card">
-        <div class="row row--gap">
+      <div class="card order-card">
+        <!-- RZĄD 1: Sekcja + Kategoria -->
+        <div class="row row--gap order-row1">
           <div class="field">
             <label>Sekcja</label>
             <select id="filterSection"></select>
@@ -32,29 +33,32 @@
             <label>Kategoria</label>
             <select id="filterCategory"></select>
           </div>
+        </div>
+
+        <!-- RZĄD 2: Ulubione + Odśwież + Baza + Export -->
+        <div class="row row--gap order-row2" style="align-items:flex-end">
+          <div class="field" style="flex:0 0 180px; min-width:160px">
+            <label>⭐ Ulubione</label>
+            <button class="btn smallbtn" id="btnFav" type="button">Wyłączone</button>
+          </div>
+          <div class="order-actions">
+            <button class="btn iconbtn" id="btnQuickRefresh" type="button" title="Odśwież bazę">
+              <span class="icon">🔄</span><span class="hide-mobile"> Odśwież bazę</span>
+            </button>
+            <button class="btn" id="btnGoCatalog" type="button">📚 Baza produktów</button>
+            <button class="btn primary" id="btnGoExport" type="button">📤 Eksport</button>
+          </div>
+        </div>
+
+        <!-- RZĄD 3: Szukaj + Koszyk -->
+        <div class="row row--gap order-row3" style="align-items:flex-end">
           <div class="field">
             <label>Szukaj</label>
             <input id="filterSearch" placeholder="np. ogórek" autocomplete="off" />
           </div>
-          <div class="field">
-            <label>⭐ Ulubione</label>
-            <button class="btn smallbtn" id="btnFav" type="button">Wyłączone</button>
+          <div class="order-actions">
+            <button class="btn" id="btnCart" type="button">🧺 Koszyk <span class="badge" id="cartCount">0</span></button>
           </div>
-          <div class="field">
-            <label>⭐ Najczęstsze</label>
-            <button class="btn smallbtn" id="btnTop" type="button">Wyłączone</button>
-          </div>
-          <div class="field">
-            <label>🧺 Tylko w koszyku</label>
-            <button class="btn smallbtn" id="btnOnlyCart" type="button">Wyłączone</button>
-          </div>
-        </div>
-
-        <div class="row row--gap row--end">
-          <button class="btn" id="btnCart">🧺 Koszyk <span class="badge" id="cartCount">0</span></button>
-          <button class="btn" id="btnGoCatalog">📚 Baza produktów</button>
-          <button class="btn" id="btnQuickRefresh">🔄 Odśwież bazę</button>
-          <button class="btn primary" id="btnGoExport">📤 Eksport</button>
         </div>
       </div>
 

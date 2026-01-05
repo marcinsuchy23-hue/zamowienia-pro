@@ -62,6 +62,31 @@ body{
   margin-bottom:14px;
 }
 
+/* Sticky header card on the main (order) screen */
+.order-card{
+  position: sticky;
+  top: 74px; /* below top header */
+  z-index: 10;
+  backdrop-filter: blur(10px);
+}
+
+.order-actions{
+  display:flex;
+  gap:12px;
+  align-items:flex-end;
+  flex-wrap:wrap;
+}
+
+.btn.iconbtn{
+  padding:12px 14px;
+  min-width:52px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+}
+
+.hide-mobile{display:inline}
+
 .row{display:flex; align-items:flex-end; justify-content:space-between; flex-wrap:wrap}
 .row--gap{gap:12px}
 .row--end{justify-content:flex-end}
@@ -252,63 +277,9 @@ textarea{
 /* Badge for cart count */
 .badge{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 6px;margin-left:8px;border-radius:999px;background:rgba(255,255,255,0.14);border:1px solid rgba(255,255,255,0.18);font-size:12px;line-height:20px;}
 
-/* Mobile: równa siatka przycisków pod filtrami */
-@media (max-width: 520px) {
-  /* ten rząd z przyciskami */
-  .row.row--gap.row--end {
-    display: grid !important;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-    justify-content: stretch;
-    align-items: stretch;
-  }
-
-  /* wszystkie przyciski w tej siatce tej samej wysokości */
-  .row.row--gap.row--end .btn {
-    width: 100%;
-    justify-content: center;
-    min-height: 44px; /* iOS “tap friendly” */
-    padding: 10px 12px;
-  }
-
-  /* badge (licznik) przy koszyku żeby nie rozpychał */
-  .row.row--gap.row--end .badge {
-    margin-left: 8px;
-    min-width: 22px;
-    height: 22px;
-    line-height: 22px;
-    border-radius: 999px;
-    display: inline-block;
-    text-align: center;
-  }
-}
-/* Mobile: równa siatka przycisków pod filtrami */
-@media (max-width: 520px) {
-  /* ten rząd z przyciskami */
-  .row.row--gap.row--end {
-    display: grid !important;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-    justify-content: stretch;
-    align-items: stretch;
-  }
-
-  /* wszystkie przyciski w tej siatce tej samej wysokości */
-  .row.row--gap.row--end .btn {
-    width: 100%;
-    justify-content: center;
-    min-height: 44px; /* iOS “tap friendly” */
-    padding: 10px 12px;
-  }
-
-  /* badge (licznik) przy koszyku żeby nie rozpychał */
-  .row.row--gap.row--end .badge {
-    margin-left: 8px;
-    min-width: 22px;
-    height: 22px;
-    line-height: 22px;
-    border-radius: 999px;
-    display: inline-block;
-    text-align: center;
-  }
+@media (max-width: 560px){
+  .order-card{ top: 64px; }
+  .hide-mobile{ display:none; }
+  .order-actions{ gap:10px; }
+  .field{ min-width: 0; }
 }
