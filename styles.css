@@ -284,12 +284,16 @@ textarea{
 .favToggle{min-width:0; padding-left:12px; padding-right:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
 
 @media (max-width: 480px){
+  /* Hide long labels on phone buttons (keep emoji/icon) */
+  .hide-mobile{display:none !important;}
+
   /* Force exactly 3 rows in the filter card on phones */
   .order-row1{display:grid; grid-template-columns: 1fr 1fr; gap:12px;}
   .order-row1 .field{min-width:0;}
 
   .order-row2{margin-top:10px;}
   .order-actions{display:grid; grid-template-columns: 1fr 44px 1fr 1fr; gap:10px; align-items:center; width:100%;}
+  .order-actions .btn{min-width:0; padding:10px 10px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
   #btnGoCatalog, #btnGoExport{justify-content:center;}
 
   .order-row3{margin-top:10px; display:grid; grid-template-columns: 1fr auto; gap:10px;}
@@ -298,4 +302,7 @@ textarea{
 
   /* Make refresh truly icon-only */
   #btnQuickRefresh{font-size:18px;}
+
+  /* Sticky filter card on phone (so you always see filters/buttons) */
+  #panelOrder > .card{position:sticky; top:66px; z-index:40; backdrop-filter: blur(12px);}
 }

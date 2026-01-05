@@ -1,4 +1,4 @@
-const CACHE_NAME = "zamowienia-pro-pwa-v2-ghfix1";
+const CACHE_NAME = "zamowienia-pro-pwa-v3-mobileheader";
 const ASSETS = [
   "./",
   "./index.html",
