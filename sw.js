@@ -1,4 +1,4 @@
-const CACHE_NAME = "zamowienia-pro-pwa-v3-mobileheader";
+const CACHE_NAME = "zamowienia-pro-pwa-v1";
 const ASSETS = [
   "./",
   "./index.html",
@@ -24,27 +24,6 @@ self.addEventListener("activate", (event) => {
 });
 
 self.addEventListener("fetch", (event) => {
-  const url = new URL(event.request.url);
-
-  // For core app shell: try network first so updates land quickly
-  const isAppShell = url.pathname.endsWith("/") ||
-    url.pathname.endsWith("/index.html") ||
-    url.pathname.endsWith("/app.js") ||
-    url.pathname.endsWith("/styles.css") ||
-    url.pathname.endsWith("/manifest.webmanifest");
-
-  if(isAppShell){
-    event.respondWith(
-      fetch(event.request).then((res) => {
-        const copy = res.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
-        return res;
-      }).catch(() => caches.match(event.request))
-    );
-    return;
-  }
-
-  // Other assets: cache first
   event.respondWith(
     caches.match(event.request).then((cached) => cached || fetch(event.request))
   );

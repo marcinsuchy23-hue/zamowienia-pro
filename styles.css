@@ -14,20 +14,19 @@
   --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
 
-
-/* iOS Safari: zapobiegaj zoomowaniu po fokusie na polu (font-size >= 16px) */
-html{-webkit-text-size-adjust:100%;}
-@media (pointer:coarse){
-  input,select,textarea{font-size:16px;}
-  input.qty{font-size:16px;}
-}
 *{box-sizing:border-box}
 html,body{height:100%}
+@supports (height: 100dvh){
+  html,body{height:100dvh}
+}
+
 body{
   margin:0;
   font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Noto Sans", sans-serif;
   background: linear-gradient(180deg, #090a0d, #0b0c0f);
   color:var(--text);
+  -webkit-text-size-adjust:100%;
+overflow:hidden;
 }
 
 .app-header{
@@ -49,8 +48,9 @@ body{
 }
 .icon{font-size:18px; line-height:1}
 
-.app{max-width:980px; margin:0 auto; padding:14px; display:block;}
-.panel{display:block}
+.app{max-width:980px; margin:0 auto; padding:14px; display:block; height:calc(100vh - 64px);
+@supports (height: 100dvh){ height:calc(100dvh - 64px); } overflow:hidden;}
+.panel{display:block; height:100%; overflow-y:auto; -webkit-overflow-scrolling:touch; padding-bottom:calc(120px + env(safe-area-inset-bottom));}
 .hidden{display:none !important}
 
 .card{
@@ -61,31 +61,6 @@ body{
   box-shadow: var(--shadow);
   margin-bottom:14px;
 }
-
-/* Sticky header card on the main (order) screen */
-.order-card{
-  position: sticky;
-  top: 74px; /* below top header */
-  z-index: 10;
-  backdrop-filter: blur(10px);
-}
-
-.order-actions{
-  display:flex;
-  gap:12px;
-  align-items:flex-end;
-  flex-wrap:wrap;
-}
-
-.btn.iconbtn{
-  padding:12px 14px;
-  min-width:52px;
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-}
-
-.hide-mobile{display:inline}
 
 .row{display:flex; align-items:flex-end; justify-content:space-between; flex-wrap:wrap}
 .row--gap{gap:12px}
@@ -101,11 +76,12 @@ input,select,textarea{
   padding:12px 12px;
   border-radius:14px;
   outline:none;
+  font-size:16px;
 }
 textarea{
   min-height:320px; resize:vertical;
   font-family: var(--mono);
-  font-size:13px;
+  font-size:16px;
   line-height:1.35;
 }
 
@@ -213,96 +189,4 @@ textarea{
 @media print{
   body{background:#fff; color:#000}
   .app-header,.app,.sheet{display:none !important}
-}
-
-
-/* --- Sekcje (checkbox chips) --- */
-#secCheckboxes{
-  display:flex;
-  flex-wrap:wrap;
-  gap:10px;
-  align-items:center;
-}
-.chip{
-  display:inline-flex;
-  align-items:center;
-  gap:8px;
-  padding:10px 12px;
-  border-radius:999px;
-  border:1px solid rgba(255,255,255,.10);
-  background:rgba(255,255,255,.06);
-  color:var(--text);
-  font-size:14px;
-  font-weight:800;
-  line-height:1;
-  user-select:none;
-}
-.chip input[type="checkbox"]{
-  margin:0;
-  width:18px;
-  height:18px;
-  flex:0 0 auto;
-}
-.chip span{
-  line-height:1.1;
-}
-
-
-/* Produkt dodany do koszyka */
-.item--inCart{
-  border: 1px solid rgba(34,197,94,.55) !important;
-  box-shadow: 0 0 0 1px rgba(34,197,94,.18), var(--shadow);
-  background: linear-gradient(180deg, rgba(34,197,94,.10), rgba(0,0,0,0));
-}
-
-
-/* Produkt dodany do koszyka */
-.item.item--inCart{
-  border-color: rgba(34,197,94,.55) !important;
-  box-shadow: 0 0 0 1px rgba(34,197,94,.35) inset, var(--shadow);
-}
-.item.item--flash{
-  animation: flashGreen .65s ease;
-}
-@keyframes flashGreen{
-  0%{ box-shadow: 0 0 0 0 rgba(34,197,94,.0) inset; }
-  35%{ box-shadow: 0 0 0 999px rgba(34,197,94,.14) inset; }
-  100%{ box-shadow: 0 0 0 0 rgba(34,197,94,.0) inset; }
-}
-
-.starbtn{ margin-left:.45rem; width:38px; height:38px; border-radius:12px; border:1px solid rgba(255,255,255,.14); background:rgba(255,255,255,.04); color:rgba(255,255,255,.85); cursor:pointer; }
-.starbtn.on{ background:rgba(255,215,0,.18); border-color:rgba(255,215,0,.35); }
-
-
-/* Badge for cart count */
-.badge{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 6px;margin-left:8px;border-radius:999px;background:rgba(255,255,255,0.14);border:1px solid rgba(255,255,255,0.18);font-size:12px;line-height:20px;}
-
-/* Compact action buttons (mobile header) */
-.miniIcon{width:44px; min-width:44px; padding:0; justify-content:center;}
-.miniIcon .badge{margin-left:6px}
-
-.favToggle{min-width:0; padding-left:12px; padding-right:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
-
-@media (max-width: 480px){
-  /* Hide long labels on phone buttons (keep emoji/icon) */
-  .hide-mobile{display:none !important;}
-
-  /* Force exactly 3 rows in the filter card on phones */
-  .order-row1{display:grid; grid-template-columns: 1fr 1fr; gap:12px;}
-  .order-row1 .field{min-width:0;}
-
-  .order-row2{margin-top:10px;}
-  .order-actions{display:grid; grid-template-columns: 1fr 44px 1fr 1fr; gap:10px; align-items:center; width:100%;}
-  .order-actions .btn{min-width:0; padding:10px 10px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
-  #btnGoCatalog, #btnGoExport{justify-content:center;}
-
-  .order-row3{margin-top:10px; display:grid; grid-template-columns: 1fr auto; gap:10px;}
-  .order-row3 .field{min-width:0;}
-  #btnCart{width:100%; justify-content:center;}
-
-  /* Make refresh truly icon-only */
-  #btnQuickRefresh{font-size:18px;}
-
-  /* Sticky filter card on phone (so you always see filters/buttons) */
-  #panelOrder > .card{position:sticky; top:66px; z-index:40; backdrop-filter: blur(12px);}
 }
