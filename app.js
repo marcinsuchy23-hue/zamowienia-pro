@@ -420,7 +420,8 @@
   
     const favBtn = document.getElementById("btnFav");
     if(favBtn){
-      favBtn.textContent = state.ui.favMode ? "Włączone" : "Wyłączone";
+      // Mobile UX: avoid "Włączone/Wyłączone" label – keep a stable button name.
+      favBtn.textContent = state.ui.favMode ? "⭐ Ulubione ✓" : "⭐ Ulubione";
       favBtn.classList.toggle("primary", !!state.ui.favMode);
     }
     const topBtn = document.getElementById("btnTop");
