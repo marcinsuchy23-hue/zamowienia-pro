@@ -282,3 +282,33 @@ textarea{
     text-align: center;
   }
 }
+/* Mobile: równa siatka przycisków pod filtrami */
+@media (max-width: 520px) {
+  /* ten rząd z przyciskami */
+  .row.row--gap.row--end {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    justify-content: stretch;
+    align-items: stretch;
+  }
+
+  /* wszystkie przyciski w tej siatce tej samej wysokości */
+  .row.row--gap.row--end .btn {
+    width: 100%;
+    justify-content: center;
+    min-height: 44px; /* iOS “tap friendly” */
+    padding: 10px 12px;
+  }
+
+  /* badge (licznik) przy koszyku żeby nie rozpychał */
+  .row.row--gap.row--end .badge {
+    margin-left: 8px;
+    min-width: 22px;
+    height: 22px;
+    line-height: 22px;
+    border-radius: 999px;
+    display: inline-block;
+    text-align: center;
+  }
+}
