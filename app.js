@@ -542,7 +542,7 @@
     }
     toast("Dodano do koszyka ✅");
     // usage stats
-    const ukey = (p.name||"").toLowerCase();
+    const ukey = (prod.name||"").toLowerCase();
     state.stats.usage[ukey] = (state.stats.usage[ukey]||0) + 1;
     renderProductList();
     if(liveCanWrite()){
