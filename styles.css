@@ -277,9 +277,25 @@ textarea{
 /* Badge for cart count */
 .badge{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 6px;margin-left:8px;border-radius:999px;background:rgba(255,255,255,0.14);border:1px solid rgba(255,255,255,0.18);font-size:12px;line-height:20px;}
 
-@media (max-width: 560px){
-  .order-card{ top: 64px; }
-  .hide-mobile{ display:none; }
-  .order-actions{ gap:10px; }
-  .field{ min-width: 0; }
+/* Compact action buttons (mobile header) */
+.miniIcon{width:44px; min-width:44px; padding:0; justify-content:center;}
+.miniIcon .badge{margin-left:6px}
+
+.favToggle{min-width:0; padding-left:12px; padding-right:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+
+@media (max-width: 480px){
+  /* Force exactly 3 rows in the filter card on phones */
+  .order-row1{display:grid; grid-template-columns: 1fr 1fr; gap:12px;}
+  .order-row1 .field{min-width:0;}
+
+  .order-row2{margin-top:10px;}
+  .order-actions{display:grid; grid-template-columns: 1fr 44px 1fr 1fr; gap:10px; align-items:center; width:100%;}
+  #btnGoCatalog, #btnGoExport{justify-content:center;}
+
+  .order-row3{margin-top:10px; display:grid; grid-template-columns: 1fr auto; gap:10px;}
+  .order-row3 .field{min-width:0;}
+  #btnCart{width:100%; justify-content:center;}
+
+  /* Make refresh truly icon-only */
+  #btnQuickRefresh{font-size:18px;}
 }
