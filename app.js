@@ -586,8 +586,9 @@ function ensureInputVisible(el){
       if(starBtn){
         // Do not steal focus from qty input on mobile
         try{ starBtn.setAttribute("tabindex","-1"); }catch(e){}
-        starBtn.addEventListener("pointerdown", (ev)=>{ ev.preventDefault(); });
-        starBtn.addEventListener("touchstart", (ev)=>{ ev.preventDefault(); }, {passive:false});
+        // Keep mobile UX smooth without cancelling the click event
+        starBtn.addEventListener("pointerdown", (ev)=>{ ev.stopPropagation(); });
+        starBtn.addEventListener("touchstart", (ev)=>{ ev.stopPropagation(); }, {passive:true});
 
         const on = isFav(p.name);
         starBtn.classList.toggle("on", on);
