@@ -420,9 +420,11 @@
   
     const favBtn = document.getElementById("btnFav");
     if(favBtn){
-      // Mobile UX: avoid "Włączone/Wyłączone" label – keep a stable button name.
-      favBtn.textContent = state.ui.favMode ? "⭐ Ulubione ✓" : "⭐ Ulubione";
+      favBtn.textContent = "⭐";
       favBtn.classList.toggle("primary", !!state.ui.favMode);
+      const lab = state.ui.favMode ? "Ulubione: włączone" : "Ulubione: wyłączone";
+      favBtn.setAttribute("title", lab);
+      favBtn.setAttribute("aria-label", lab);
     }
     const topBtn = document.getElementById("btnTop");
     if(topBtn){
