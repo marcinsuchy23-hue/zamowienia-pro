@@ -319,3 +319,14 @@ textarea{
   /* Sticky filter card on phone (so you always see filters/buttons) */
   #panelOrder > .card{position:sticky; top:66px; z-index:40; backdrop-filter: blur(12px);}
 }
+
+
+/* iOS: second sticky card causes "jumping" when Safari/Chrome hides/shows the address bar.
+   Keep only the top header sticky; make the order panel normal flow on iOS. */
+@supports (-webkit-touch-callout: none){
+  .order-card{ position: static; top: auto; }
+  .app-header{ position: sticky; }
+}
+html{ -webkit-text-size-adjust: 100%; }
+body{ overscroll-behavior-y: none; }
+

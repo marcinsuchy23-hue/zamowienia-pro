@@ -588,14 +588,7 @@
 
     // Restore scroll (and keep the focused row roughly in place)
     try{ window.scrollTo({ top: prevScrollY, left: 0, behavior: "auto" }); }catch(e){ window.scrollTo(0, prevScrollY); }
-    if(activeKey){
-      const node = list.querySelector(`.item[data-key="${CSS.escape(activeKey)}"]`);
-      if(node){
-        // Don't force focus; just keep the same product visible.
-        node.scrollIntoView({ block: "nearest" });
-      }
-    }
-  }
+}
 
   function addToOrder(prod, qty){
     const by = norm(state.settings.userName) || "—";
@@ -1177,7 +1170,7 @@ $("btnBack").addEventListener("click", () => showPanel("panelOrder"));
     // Register service worker
     if("serviceWorker" in navigator){
       // Cache-bust SW itself to ensure Chrome/iOS fetches the newest worker.
-      navigator.serviceWorker.register("./sw.js?v=20260106f").catch(()=>{});
+      navigator.serviceWorker.register("./sw.js?v=20260106g").catch(()=>{});
     }
   }
 
