@@ -1,0 +1,7 @@
+body { margin:0; font-family: system-ui, -apple-system, BlinkMacSystemFont; }
+.sticky { position: sticky; top: 0; background: #fff; border-bottom:1px solid #ddd; z-index:10; }
+.row1, .row2 { display:flex; align-items:center; justify-content:space-between; padding:8px 12px; }
+.title { font-weight:600; }
+.fav { font-size:18px; background:none; border:none; }
+.cart { font-weight:600; }
+main { padding:16px; }
