@@ -281,6 +281,10 @@ function ensureInputVisible(el){
 
   const $ = (id) => document.getElementById(id);
 
+  // --- mobile UX: keep last interacted row visible across re-renders (iOS keyboard / sticky header) ---
+  let lastActionKey = "";
+  let lastActionFocus = false;
+
   const state = {
     settings: { userName: "", restaurant: "Zamówienia PRO", sections: DEFAULT_SECTIONS.slice() },
     ui: { filterSection: "", filterCategory: "", search: "", favMode: false, topMode: false, onlyInCart: false },
@@ -520,10 +524,14 @@ function ensureInputVisible(el){
   function renderProductList(){
     // Preserve scroll position when re-rendering the list (mobile keyboard + rebuild)
     const prevScrollY = window.scrollY || 0;
+    const vv = window.visualViewport;
     const activeEl = document.activeElement;
-    const activeKey = activeEl && activeEl.classList && activeEl.classList.contains("qty")
+
+    // Key of the row we want to keep visible after re-render (either focused qty input, or last action)
+    let keepKey = activeEl && activeEl.classList && activeEl.classList.contains("qty")
       ? (activeEl.closest(".item")?.getAttribute("data-key") || "")
       : "";
+    if(!keepKey && lastActionKey) keepKey = lastActionKey;
 
     const list = $("productList");
     list.innerHTML = "";
@@ -558,7 +566,7 @@ function ensureInputVisible(el){
       `;
       const qtyEl = row.querySelector("input.qty");
       if(qtyEl){
-        qtyEl.addEventListener("focus", ()=>{ rememberScroll(); setTimeout(()=>ensureInputVisible(qtyEl), 50); });
+        qtyEl.addEventListener("focus", ()=>{ lastActionKey = key; lastActionFocus = true; rememberScroll(); setTimeout(()=>ensureInputVisible(qtyEl), 50); });
       }
 
       const starBtn = row.querySelector("button.starbtn");
@@ -580,6 +588,7 @@ function ensureInputVisible(el){
       btn.addEventListener("click", () => {
         const qty = norm(qtyEl.value);
         if(!qty){ toast("Wpisz ilość"); return; }
+        lastActionKey = key; lastActionFocus = false;
         addToOrder(p, qty);
         try{ qtyEl.blur(); }catch(e){}
         row.classList.add("item--flash");
@@ -599,8 +608,32 @@ function ensureInputVisible(el){
     }
     updateCartCount();
 
-    // Restore scroll (and keep the focused row roughly in place)
+    // Restore scroll (and keep the interacted row visible under sticky header)
     try{ window.scrollTo({ top: prevScrollY, left: 0, behavior: "auto" }); }catch(e){ window.scrollTo(0, prevScrollY); }
+
+    try{
+      if(keepKey){
+        const header = document.querySelector('.app-header');
+        const headerH = header ? header.getBoundingClientRect().height : 0;
+        const topPad = Math.round(headerH + 24);
+        const bottomPad = 16;
+        const viewH = (vv && vv.height) ? vv.height : window.innerHeight;
+
+        const rowEl = document.querySelector(`.item[data-key="${cssEscape(keepKey)}"]`);
+        if(rowEl){
+          const r = rowEl.getBoundingClientRect();
+          // If hidden under header, scroll up a bit so it sits below header
+          if(r.top < topPad){
+            window.scrollBy({ top: (r.top - topPad), left: 0, behavior: "auto" });
+          }else if(r.bottom > (viewH - bottomPad)){
+            window.scrollBy({ top: (r.bottom - (viewH - bottomPad)), left: 0, behavior: "auto" });
+          }
+        }
+      }
+    }catch(e){}
+
+    // one-shot: only keep last action for the next render
+    if(!lastActionFocus) lastActionKey = "";
 }
 
   function addToOrder(prod, qty){
@@ -905,6 +938,11 @@ function renderExport(){
       .replace(/'/g,"&#039;");
   }
 
+
+  function cssEscape(s){
+    try{ return (window.CSS && CSS.escape) ? CSS.escape(String(s)) : String(s).replace(/[^a-zA-Z0-9_\-]/g, (c)=>'\\'+c); }
+    catch(e){ return String(s).replace(/[^a-zA-Z0-9_\-]/g, (c)=>'\\'+c); }
+  }
   function favKey(name){ return (name||"").toLowerCase(); }
   function isFav(name){
     const k = favKey(name);
