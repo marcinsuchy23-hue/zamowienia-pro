@@ -300,7 +300,9 @@ textarea{
   .order-row3{margin-top:10px; display:grid; grid-template-columns: minmax(0,1fr) auto; gap:10px;}
   .order-row3 .field{min-width:0;}
   .order-row3 input{min-width:0; width:100%;}
-  #btnCart{width:100%; justify-content:center;}
+  /* IMPORTANT: do NOT force 100% width inside the auto grid column,
+     otherwise Safari makes the cart column eat all space and the search shrinks to a tiny pill */
+  #btnCart{width:auto; justify-content:center; white-space:nowrap;}
 
   /* Make refresh truly icon-only */
   #btnQuickRefresh{font-size:18px;}
