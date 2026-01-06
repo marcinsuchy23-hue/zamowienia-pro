@@ -9,9 +9,22 @@
   function restoreScrollSoon(delayMs=60){
     if(__scrollRestoreTimer) clearTimeout(__scrollRestoreTimer);
     __scrollRestoreTimer = setTimeout(()=>{
-      try { window.scrollTo({ top: __lastScrollY, left: 0, behavior: "instant" }); }
+      // "instant" is not a valid scroll behavior in most browsers.
+      // Using "auto" makes the restore reliable on Chrome/Android + iOS.
+      try { window.scrollTo({ top: __lastScrollY, left: 0, behavior: "auto" }); }
       catch(e){ window.scrollTo(0, __lastScrollY); }
     }, delayMs);
+  }
+
+  // Extra: when the virtual keyboard changes viewport size, keep scroll stable.
+  // This helps Chrome/Android where focusing an input may "jump" the page.
+  if(window.visualViewport){
+    let __vvTimer = null;
+    window.visualViewport.addEventListener("resize", ()=>{
+      // Debounce: restore scroll shortly after resize settles.
+      if(__vvTimer) clearTimeout(__vvTimer);
+      __vvTimer = setTimeout(()=>restoreScrollSoon(0), 50);
+    });
   }
 
   const LS_KEY = "zamowienia_pro_v1";
@@ -435,8 +448,9 @@
   
     const favBtn = document.getElementById("btnFav");
     if(favBtn){
-      // Mobile UX: avoid "Włączone/Wyłączone" label – keep a stable button name.
-      favBtn.textContent = state.ui.favMode ? "⭐ Ulubione ✓" : "⭐ Ulubione";
+      // IMPORTANT: do NOT use textContent here, because it would remove
+      // the <span class="hide-mobile">...</span> (and then "Ulubione" shows on phone).
+      favBtn.innerHTML = `⭐<span class="hide-mobile"> Ulubione${state.ui.favMode ? " ✓" : ""}</span>`;
       favBtn.classList.toggle("primary", !!state.ui.favMode);
     }
     const topBtn = document.getElementById("btnTop");
@@ -484,6 +498,13 @@
   }
 
   function renderProductList(){
+    // Preserve scroll position when re-rendering the list (mobile keyboard + rebuild)
+    const prevScrollY = window.scrollY || 0;
+    const activeEl = document.activeElement;
+    const activeKey = activeEl && activeEl.classList && activeEl.classList.contains("qty")
+      ? (activeEl.closest(".item")?.getAttribute("data-key") || "")
+      : "";
+
     const list = $("productList");
     list.innerHTML = "";
 
@@ -499,7 +520,9 @@
 
     for(const p of arr){
       const row = document.createElement("div");
+	  const key = ((p.name||"").toLowerCase()) + "||" + ((capFirst(p.category)||"Inne").toLowerCase());
       row.className = "item" + (ordered.has((p.name||"").toLowerCase()) ? " item--inCart" : "");
+      row.setAttribute("data-key", key);
 	      const secs = parseSections(p.sections);
 	      const meta = [capFirst(p.category) || "Inne", secs.length ? `• ${secs.join(", ")}` : ""].filter(Boolean).join(" ");
 	      row.innerHTML = `
@@ -557,6 +580,16 @@
       list.appendChild(row);
     }
     updateCartCount();
+
+    // Restore scroll (and keep the focused row roughly in place)
+    try{ window.scrollTo({ top: prevScrollY, left: 0, behavior: "auto" }); }catch(e){ window.scrollTo(0, prevScrollY); }
+    if(activeKey){
+      const node = list.querySelector(`.item[data-key="${CSS.escape(activeKey)}"]`);
+      if(node){
+        // Don't force focus; just keep the same product visible.
+        node.scrollIntoView({ block: "nearest" });
+      }
+    }
   }
 
   function addToOrder(prod, qty){
@@ -1138,7 +1171,8 @@ $("btnBack").addEventListener("click", () => showPanel("panelOrder"));
 
     // Register service worker
     if("serviceWorker" in navigator){
-      navigator.serviceWorker.register("./sw.js?v=20260106c").catch(()=>{});
+      // Cache-bust SW itself to ensure Chrome/iOS fetches the newest worker.
+      navigator.serviceWorker.register("./sw.js?v=20260106e").catch(()=>{});
     }
   }
 
