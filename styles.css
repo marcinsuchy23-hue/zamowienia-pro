@@ -284,69 +284,46 @@ textarea{
 .favToggle{min-width:0; padding-left:12px; padding-right:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
 
 @media (max-width: 480px){
-  /* panel z filtrami jako „sticky” */
-  #panelOrder > .card{
-    position: sticky;
-    top: 0;
-    z-index: 20;
-    background: rgba(16,18,25,.92);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-  }
+  /* Hide long labels on phone buttons (keep emoji/icon) */
+  .hide-mobile{display:none !important;}
 
-  /* 3 linie */
-  .order-row1{
-    display:grid;
-    grid-template-columns: 1fr 1fr auto;
-    gap:10px;
-    align-items:end;
-  }
-  .order-row2{
-    display:flex;
-    gap:10px;
-    align-items:center;
-    justify-content:space-between;
-  }
-  .order-row3{
-    display:flex;
-    gap:10px;
-    align-items:end;
-  }
-  .field--grow{ flex: 1 1 auto; min-width: 0; }
-  .field--cart{ flex: 0 0 auto; }
+  /* Force exactly 3 rows in the filter card on phones */
+  .order-row1{display:grid; grid-template-columns: 1fr 1fr; gap:12px;}
+  .order-row1 .field{min-width:0;}
 
-  /* małe ikonki */
-  .btn.iconbtn{
-    width: 46px;
-    min-width: 46px;
-    padding: 10px 0;
-    text-align:center;
-    justify-content:center;
-  }
-  /* baza jako ikonka w 1. wierszu */
-  .field--icon{ width:46px; }
-  .field--icon label{ visibility:hidden; }
+  .order-row2{margin-top:10px;}
+  .order-actions{display:grid; grid-template-columns: 1fr 44px 1fr 1fr; gap:10px; align-items:center; width:100%;}
+  .order-actions .btn{min-width:0; padding:10px 10px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  #btnGoCatalog, #btnGoExport{justify-content:center;}
 
-  /* koszyk – zawsze pokazuj licznik */
-  #btnCart{
-    min-width: 72px;
-    justify-content:center;
-    gap:8px;
-    padding: 10px 12px;
-  }
-  #btnCart .badge{
-    display:inline-flex;
-    min-width: 22px;
-    height: 22px;
-    padding: 0 7px;
-    border-radius: 999px;
-    align-items:center;
-    justify-content:center;
-  }
+  /* iOS/Safari grid sizing: allow the search field to shrink instead of being clipped/hidden */
+  .order-row3{margin-top:10px; display:flex; gap:10px; align-items:flex-end;}
+.order-row3 .field{flex:1 1 auto; min-width:0;}
+.order-row3 input{min-width:0;}
+#filterSearch{width:100%; min-width:0;}
+#btnCart{flex:0 0 auto; white-space:nowrap;}
+  .order-row3 .field{min-width:0;}
+  .order-row3 input{min-width:0; width:100%;}
+  /* IMPORTANT: do NOT force 100% width inside the auto grid column,
+     otherwise Safari makes the cart column eat all space and the search shrinks to a tiny pill */
+  #btnCart{width:auto; justify-content:center; white-space:nowrap;}
 
-  /* nie wciskaj listy pod filtrami */
-  #productList{ padding-top: 6px; }
+  /* Make refresh truly icon-only */
+  #btnQuickRefresh{font-size:18px;}
 
-  /* usuń nadmiarowe marginesy w nagłówku listy */
-  .list-head{ margin-top: 10px; }
+  /* Sticky filter card on phone (so you always see filters/buttons) */
+  #panelOrder > .card{position:sticky; top:66px; z-index:40; backdrop-filter: blur(12px);}
+
+  /* v10 mobile header tweaks */
+  .order-row1 .order-actions{align-self:end}
+  .order-actions--1{display:flex; justify-content:flex-end}
+  .order-actions--1 .btn{padding:10px 12px}
+  /* compact cart button on mobile: keep badge visible */
+  #btnCart{display:inline-flex; align-items:center; gap:8px}
+  #btnCart .cartLabel{display:none}
+  #btnCart .badge{flex:0 0 auto}
+  .order-row3 .field--search{min-width:0}
+  .order-row3 #filterSearch{min-width:0; width:100%}
+  .order-row3 #btnCart{min-width:120px; max-width:160px}
+
 }
