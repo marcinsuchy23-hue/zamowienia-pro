@@ -580,8 +580,8 @@ function updateKeyboardInset(){
         </div>
         <div class="item__right">
           <input class="qty" inputmode="text" placeholder="np. 2kg" />
-          <button class="starbtn" title="Ulubione">☆</button>
-          <button class="smallbtn">➕</button>
+          <button class="starbtn" type="button" title="Ulubione">☆</button>
+          <button class="smallbtn" type="button">➕</button>
         </div>
       `;
       const qtyEl = row.querySelector("input.qty");
@@ -609,7 +609,9 @@ function updateKeyboardInset(){
       if(starBtn){
         // Do not steal focus from qty input on mobile
         try{ starBtn.setAttribute("tabindex","-1"); }catch(e){}
-                
+        starBtn.addEventListener("pointerdown", (ev)=>{ ev.preventDefault(); });
+        starBtn.addEventListener("touchstart", (ev)=>{ ev.preventDefault(); }, {passive:false});
+
         const on = isFav(p.name);
         starBtn.classList.toggle("on", on);
         starBtn.textContent = on ? "★" : "☆";
@@ -626,10 +628,12 @@ function updateKeyboardInset(){
       if(btn){
         // Prevent button from stealing focus (iOS hides the input behind keyboard/header after tap)
         try{ btn.setAttribute("tabindex","-1"); }catch(e){}
-                      }
+        btn.addEventListener("pointerdown", (ev)=>{ ev.preventDefault(); });
+        btn.addEventListener("touchstart", (ev)=>{ ev.preventDefault(); }, {passive:false});
+      }
 
 
-      btn.addEventListener("click", () => {
+      const handleAdd = (ev) => {
         const qty = norm(qtyEl.value);
         if(!qty){ toast("Wpisz ilość"); return; }
         lastActionKey = key;
@@ -647,7 +651,11 @@ function updateKeyboardInset(){
           ensureInputVisible(qtyEl);
         }, 30);
         setTimeout(()=>ensureInputVisible(qtyEl), 160);
-      });
+      };
+
+      btn.addEventListener("click", handleAdd);
+      btn.addEventListener("pointerup", handleAdd);
+      btn.addEventListener("touchend", handleAdd);
 
       qtyEl.addEventListener("keydown", (ev) => {
         if(ev.key === "Enter"){
@@ -655,7 +663,7 @@ function updateKeyboardInset(){
           rememberScroll();
           updateKeyboardInset();
           setTimeout(updateKeyboardInset, 0);
-          btn.click();
+          handleAdd(ev);
         }
       });
 
@@ -730,17 +738,12 @@ function updateKeyboardInset(){
     state.stats.usage[ukey] = (state.stats.usage[ukey]||0) + 1;
     renderProductList();
     updateCartCount();
-    // Always update local UI/state immediately.
-    // In LIVE mode we still keep local state in sync so the basket updates instantly,
-    // while the Firestore write happens asynchronously.
-    save();
-    renderBasket();
-    updateCartCount();
-
     if(liveCanWrite()){
-	      // Write to LIVE in background; local UI has already been updated.
+	      // BUGFIX: previously used an undefined variable `p` here.
+	      // We must pass the product we are adding.
 	      liveAddItem(prod, qty).catch(e=>{console.error(e); toast("Błąd LIVE zapisu");});
     }else{
+      save();
       renderAll();
     }
   }
@@ -1299,7 +1302,7 @@ $("btnBack").addEventListener("click", () => showPanel("panelOrder"));
     // Register service worker
     if("serviceWorker" in navigator){
       // Cache-bust SW itself to ensure Chrome/iOS fetches the newest worker.
-      navigator.serviceWorker.register("./sw.js?v=20260106o").catch(()=>{});
+      navigator.serviceWorker.register("./sw.js?v=FINAL20260106-01").catch(()=>{});
     }
   }
 
