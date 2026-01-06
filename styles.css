@@ -313,4 +313,17 @@ textarea{
 
   /* Sticky filter card on phone (so you always see filters/buttons) */
   #panelOrder > .card{position:sticky; top:66px; z-index:40; backdrop-filter: blur(12px);}
+
+  /* v10 mobile header tweaks */
+  .order-row1 .order-actions{align-self:end}
+  .order-actions--1{display:flex; justify-content:flex-end}
+  .order-actions--1 .btn{padding:10px 12px}
+  /* compact cart button on mobile: keep badge visible */
+  #btnCart{display:inline-flex; align-items:center; gap:8px}
+  #btnCart .cartLabel{display:none}
+  #btnCart .badge{flex:0 0 auto}
+  .order-row3 .field--search{min-width:0}
+  .order-row3 #filterSearch{min-width:0; width:100%}
+  .order-row3 #btnCart{min-width:120px; max-width:160px}
+
 }
