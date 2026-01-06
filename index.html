@@ -24,40 +24,41 @@
   <main class="app">
     <section class="panel" id="panelOrder">
       <div class="card order-card">
-        <!-- RZĄD 1: Sekcja + Kategoria + (mała ikona) Baza -->
-<div class="row row--gap order-row1">
-  <div class="field">
-    <label>Sekcja</label>
-    <select id="filterSection"></select>
-  </div>
-  <div class="field">
-    <label>Kategoria</label>
-    <select id="filterCategory"></select>
-  </div>
-  <div class="field field--icon">
-    <label>&nbsp;</label>
-    <button class="btn iconbtn" id="btnGoCatalog" type="button" aria-label="Baza produktów" title="Baza produktów">📚</button>
-  </div>
-</div>
+        <!-- RZĄD 1: Sekcja + Kategoria -->
+        <div class="row row--gap order-row1">
+          <div class="field">
+            <label>Sekcja</label>
+            <select id="filterSection"></select>
+          </div>
+          <div class="field">
+            <label>Kategoria</label>
+            <select id="filterCategory"></select>
+          </div>
+        </div>
 
-<!-- RZĄD 2: Ulubione (ikona) + Odśwież (ikona) + Export -->
-<div class="row row--gap order-row2">
-  <button class="btn iconbtn" id="btnFav" type="button" aria-label="Ulubione" title="Ulubione">⭐</button>
-  <button class="btn iconbtn" id="btnQuickRefresh" type="button" aria-label="Odśwież bazę" title="Odśwież bazę">🔄</button>
-  <button class="btn primary" id="btnGoExport" type="button">📤 Eksport</button>
-</div>
+        <!-- RZĄD 2: Ulubione + Odśwież + Baza + Export (max 1 linia na telefonie) -->
+        <div class="row row--gap order-row2" style="align-items:flex-end">
+          <div class="order-actions order-actions--4">
+            <button class="btn smallbtn favbtn" id="btnFav" type="button" title="Ulubione">⭐ Ulubione</button>
+            <button class="btn iconbtn" id="btnQuickRefresh" type="button" title="Odśwież bazę">
+              <span class="icon">🔄</span><span class="hide-mobile"> Odśwież bazę</span>
+            </button>
+            <button class="btn" id="btnGoCatalog" type="button">📚 Baza</button>
+            <button class="btn primary" id="btnGoExport" type="button">📤 Eksport</button>
+          </div>
+        </div>
 
-<!-- RZĄD 3: Szukaj + Koszyk (ikona + licznik) -->
-<div class="row row--gap order-row3">
-  <div class="field field--grow">
-    <label>Szukaj</label>
-    <input id="filterSearch" placeholder="np. ogórek" autocomplete="off" />
-  </div>
-  <div class="field field--cart">
-    <label>&nbsp;</label>
-    <button class="btn" id="btnCart" type="button" aria-label="Koszyk">🧺 <span class="badge" id="cartCount">0</span></button>
-  </div>
-</div>
+        <!-- RZĄD 3: Szukaj + Koszyk -->
+        <div class="row row--gap order-row3" style="align-items:flex-end">
+          <div class="field">
+            <label>Szukaj</label>
+            <input id="filterSearch" placeholder="np. ogórek" autocomplete="off" />
+          </div>
+          <div class="order-actions">
+            <button class="btn" id="btnCart" type="button">🧺 Koszyk <span class="badge" id="cartCount">0</span></button>
+          </div>
+        </div>
+      </div>
 
       <div class="list-head">
         <div class="list-head__title">Produkty</div>
