@@ -330,3 +330,11 @@ textarea{
 html{ -webkit-text-size-adjust: 100%; }
 body{ overscroll-behavior-y: none; }
 
+
+
+/* --- Keyboard handling (mobile) --- */
+:root{ --kb-inset: 0px; }
+body.kb-open main{ padding-bottom: calc(var(--kb-inset) + 180px); }
+body.kb-open .list{ padding-bottom: calc(var(--kb-inset) + 180px); }
+/* On small screens, sticky secondary header can cover the input while keyboard is open */
+body.kb-open .order-card{ position: static; }

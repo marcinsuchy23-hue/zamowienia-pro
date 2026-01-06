@@ -45,6 +45,26 @@ function ensureInputVisible(el){
       window.scrollBy({ top: delta, left: 0, behavior: "auto" });
     }
   }catch(e){}
+
+function updateKeyboardInset(){
+  try{
+    const vv = window.visualViewport;
+    const inset = vv ? Math.max(0, window.innerHeight - vv.height - vv.offsetTop) : 0;
+    document.documentElement.style.setProperty('--kb-inset', inset + 'px');
+    if(inset > 0) document.body.classList.add('kb-open');
+    else document.body.classList.remove('kb-open');
+  }catch(e){}
+}
+
+// Keep CSS var in sync while keyboard is open (no scrolling here; only padding)
+(function(){
+  const vv = window.visualViewport;
+  if(!vv) return;
+  vv.addEventListener('resize', ()=>{ if(document.body.classList.contains('kb-open')) updateKeyboardInset(); });
+  vv.addEventListener('scroll',  ()=>{ if(document.body.classList.contains('kb-open')) updateKeyboardInset(); });
+})();
+
+
 }
 
   const LS_KEY = "zamowienia_pro_v1";
@@ -570,6 +590,8 @@ function ensureInputVisible(el){
           lastActionKey = key;
           lastActionFocus = true;
           rememberScroll();
+          updateKeyboardInset();
+          setTimeout(updateKeyboardInset, 0);
           // iOS/Chrome: when keyboard opens, the focused input near bottom may stay under keyboard/header.
           // Run a few times to catch late visualViewport adjustments.
           setTimeout(()=>ensureInputVisible(qtyEl), 40);
@@ -577,6 +599,7 @@ function ensureInputVisible(el){
           setTimeout(()=>ensureInputVisible(qtyEl), 260);
         });
         qtyEl.addEventListener("blur", ()=>{
+          setTimeout(()=>{ document.body.classList.remove('kb-open'); document.documentElement.style.setProperty('--kb-inset','0px'); }, 80);
           // User stopped editing; allow normal scroll behavior on next renders
           lastActionFocus = false;
         });
@@ -616,6 +639,8 @@ function ensureInputVisible(el){
         lastActionKey = key;
         lastActionFocus = true;
         rememberScroll();
+          updateKeyboardInset();
+          setTimeout(updateKeyboardInset, 0);
         addToOrder(p, qty);
         row.classList.add("item--flash");
         setTimeout(()=>row.classList.remove("item--flash"), 650);
@@ -632,6 +657,8 @@ function ensureInputVisible(el){
         if(ev.key === "Enter"){
           ev.preventDefault();
           rememberScroll();
+          updateKeyboardInset();
+          setTimeout(updateKeyboardInset, 0);
           btn.click();
         }
       });
