@@ -3,8 +3,8 @@ const CACHE_NAME = "zamowienia-pro-20260106c";
 const ASSETS = [
   "./",
   "./index.html",
-  "./styles.css?v=20260106c",
-  "./app.js?v=20260106c",
+  "./styles.css?v=20260106d",
+  "./app.js?v=20260106d",
   "./manifest.webmanifest",
   "./icon-192.png",
   "./icon-512.png"
