@@ -35,14 +35,14 @@ function ensureInputVisible(el){
     const desiredBottom = viewH - bottomPad;
     if(rect.bottom > desiredBottom){
       const delta = rect.bottom - desiredBottom;
-      window.scrollBy({ top: delta, left: 0, behavior: "smooth" });
+      window.scrollBy({ top: delta, left: 0, behavior: "auto" });
       return;
     }
     // If element is above the visible viewport (under header), scroll up a bit.
     const desiredTop = topPad;
     if(rect.top < desiredTop){
       const delta = rect.top - desiredTop;
-      window.scrollBy({ top: delta, left: 0, behavior: "smooth" });
+      window.scrollBy({ top: delta, left: 0, behavior: "auto" });
     }
   }catch(e){}
 }
@@ -566,11 +566,29 @@ function ensureInputVisible(el){
       `;
       const qtyEl = row.querySelector("input.qty");
       if(qtyEl){
-        qtyEl.addEventListener("focus", ()=>{ lastActionKey = key; lastActionFocus = true; rememberScroll(); setTimeout(()=>ensureInputVisible(qtyEl), 50); });
+        qtyEl.addEventListener("focus", ()=>{
+          lastActionKey = key;
+          lastActionFocus = true;
+          rememberScroll();
+          // iOS/Chrome: when keyboard opens, the focused input near bottom may stay under keyboard/header.
+          // Run a few times to catch late visualViewport adjustments.
+          setTimeout(()=>ensureInputVisible(qtyEl), 40);
+          setTimeout(()=>ensureInputVisible(qtyEl), 140);
+          setTimeout(()=>ensureInputVisible(qtyEl), 260);
+        });
+        qtyEl.addEventListener("blur", ()=>{
+          // User stopped editing; allow normal scroll behavior on next renders
+          lastActionFocus = false;
+        });
       }
 
       const starBtn = row.querySelector("button.starbtn");
       if(starBtn){
+        // Do not steal focus from qty input on mobile
+        try{ starBtn.setAttribute("tabindex","-1"); }catch(e){}
+        starBtn.addEventListener("pointerdown", (ev)=>{ ev.preventDefault(); });
+        starBtn.addEventListener("touchstart", (ev)=>{ ev.preventDefault(); }, {passive:false});
+
         const on = isFav(p.name);
         starBtn.classList.toggle("on", on);
         starBtn.textContent = on ? "★" : "☆";
@@ -584,15 +602,30 @@ function ensureInputVisible(el){
       }
 
       const btn = row.querySelector("button.smallbtn");
+      if(btn){
+        // Prevent button from stealing focus (iOS hides the input behind keyboard/header after tap)
+        try{ btn.setAttribute("tabindex","-1"); }catch(e){}
+        btn.addEventListener("pointerdown", (ev)=>{ ev.preventDefault(); });
+        btn.addEventListener("touchstart", (ev)=>{ ev.preventDefault(); }, {passive:false});
+      }
+
 
       btn.addEventListener("click", () => {
         const qty = norm(qtyEl.value);
         if(!qty){ toast("Wpisz ilość"); return; }
-        lastActionKey = key; lastActionFocus = true;
+        lastActionKey = key;
+        lastActionFocus = true;
+        rememberScroll();
         addToOrder(p, qty);
-row.classList.add("item--flash");
+        row.classList.add("item--flash");
         setTimeout(()=>row.classList.remove("item--flash"), 650);
+        // Keep keyboard open and keep editing context visible
         qtyEl.value = "";
+        setTimeout(()=>{
+          try{ qtyEl.focus({ preventScroll:true }); }catch(e){ try{ qtyEl.focus(); }catch(e2){} }
+          ensureInputVisible(qtyEl);
+        }, 30);
+        setTimeout(()=>ensureInputVisible(qtyEl), 160);
       });
 
       qtyEl.addEventListener("keydown", (ev) => {
