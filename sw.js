@@ -1,5 +1,5 @@
 // Bump on every deploy: forces iOS/Safari to pick up the new UI
-const CACHE_NAME = "zamowienia-pro-pwa-20260106e";
+const CACHE_NAME = "zamowienia-pro-pwa-20260106f";
 const ASSETS = [
   "./",
   "./index.html",
@@ -63,25 +63,4 @@ self.addEventListener("fetch", (event) => {
   event.respondWith(
     caches.match(event.request).then((cached) => cached || fetch(event.request))
   );
-});
-
-self.addEventListener('fetch', (event) => {
-  const req = event.request;
-  // HTML nawigacje: network-first (żeby aktualizacje przychodziły od razu)
-  if (req.mode === 'navigate') {
-    event.respondWith((async () => {
-      try {
-        const fresh = await fetch(req);
-        const cache = await caches.open('zamowienia-pro-pwa-20260106e');
-        cache.put('./', fresh.clone());
-        return fresh;
-      } catch (e) {
-        const cached = await caches.match('./');
-        return cached || Response.error();
-      }
-    })());
-    return;
-  }
-  // assety: cache-first
-  event.respondWith(caches.match(req).then(r => r || fetch(req)));
 });

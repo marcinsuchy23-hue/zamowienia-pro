@@ -283,7 +283,7 @@ textarea{
 
 .favToggle{min-width:0; padding-left:12px; padding-right:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
 
-@media (max-width: 768px){
+@media (max-width: 480px){
   /* Hide long labels on phone buttons (keep emoji/icon) */
   .hide-mobile{display:none !important;}
 
@@ -314,3 +314,12 @@ textarea{
   /* Sticky filter card on phone (so you always see filters/buttons) */
   #panelOrder > .card{position:sticky; top:66px; z-index:40; backdrop-filter: blur(12px);}
 }
+
+
+@media (max-width: 768px){
+  .hide-mobile{display:none !important;}
+}
+
+
+/* iOS FIX: brak zoomu i skakania przy klawiaturze */
+input, textarea, select { font-size: 16px !important; }

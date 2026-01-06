@@ -1,36 +1,4 @@
 (() => {
-  const APP_VERSION = '20260106e';
-
-  // --- iOS/Chrome: stabilizuj scroll przy klawiaturze ---
-  let __lastScrollY = 0;
-  let __scrollRestoreTimer = null;
-  function rememberScroll(){ __lastScrollY = window.scrollY || 0; }
-  function restoreScrollSoon(delayMs=60){
-    if(__scrollRestoreTimer) clearTimeout(__scrollRestoreTimer);
-    __scrollRestoreTimer = setTimeout(()=>{
-      try { window.scrollTo({ top: __lastScrollY, left: 0, behavior: "instant" }); }
-      catch(e){ window.scrollTo(0, __lastScrollY); }
-    }, delayMs);
-  }
-
-
-  // Force update / reset cache: otwórz stronę z ?reset=1 (raz) aby wyczyścić SW + cache
-  (async function maybeReset(){
-    try{
-      if(new URL(location.href).searchParams.get('reset') === '1'){
-        const regs = await navigator.serviceWorker.getRegistrations();
-        for(const r of regs){ try{ await r.unregister(); }catch(e){} }
-        if(window.caches && caches.keys){
-          const keys = await caches.keys();
-          await Promise.all(keys.map(k=>caches.delete(k)));
-        }
-        // usuń parametr reset i przeładuj
-        const u = new URL(location.href); u.searchParams.delete('reset');
-        location.replace(u.toString());
-      }
-    }catch(e){}
-  })();
-
   const LS_KEY = "zamowienia_pro_v1";
   const DEFAULT_CATS = ["Warzywa","Mięso","Nabiał","Mrożonki","Suchy magazyn","Przyprawy","Owoce","Ryby","Inne"];
   const DEFAULT_SECTIONS = ["Grill","Palniki","Zimna","Wydawka"];
@@ -531,11 +499,6 @@
         </div>
       `;
       const qtyEl = row.querySelector("input.qty");
-      if(qtyEl){
-        qtyEl.addEventListener("focus", ()=>{ rememberScroll(); });
-        qtyEl.addEventListener("blur", ()=>{ restoreScrollSoon(80); });
-      }
-
       const starBtn = row.querySelector("button.starbtn");
       if(starBtn){
         const on = isFav(p.name);
@@ -556,8 +519,6 @@
         const qty = norm(qtyEl.value);
         if(!qty){ toast("Wpisz ilość"); return; }
         addToOrder(p, qty);
-        try{ qtyEl.blur(); }catch(e){}
-        restoreScrollSoon(120);
         row.classList.add("item--flash");
         setTimeout(()=>row.classList.remove("item--flash"), 650);
         qtyEl.value = "";
@@ -566,7 +527,6 @@
       qtyEl.addEventListener("keydown", (ev) => {
         if(ev.key === "Enter"){
           ev.preventDefault();
-          rememberScroll();
           btn.click();
         }
       });
