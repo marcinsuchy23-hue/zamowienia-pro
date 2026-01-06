@@ -8,7 +8,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon-192.png">
   <!-- cache-bust for GitHub Pages / iOS Safari (updates show instantly) -->
-  <link rel="stylesheet" href="styles.css?v=20260106f" />
+  <link rel="stylesheet" href="styles.css?v=20260106d" />
 </head>
 <body>
   <header class="app-header">
@@ -45,6 +45,7 @@
             </button>
             <button class="btn" id="btnGoCatalog" type="button">📚<span class="hide-mobile"> Baza</span></button>
             <button class="btn primary" id="btnGoExport" type="button">📤<span class="hide-mobile"> Eksport</span></button>
+            <button class="btn" id="btnCart" type="button">🧺<span class="hide-mobile"> Koszyk</span> <span class="badge" id="cartCount">0</span></button>
           </div>
         </div>
 
@@ -54,10 +55,7 @@
             <label>Szukaj</label>
             <input id="filterSearch" placeholder="np. ogórek" autocomplete="off" />
           </div>
-          <div class="order-actions">
-            <button class="btn" id="btnCart" type="button">🧺 Koszyk <span class="badge" id="cartCount">0</span></button>
-          </div>
-        </div>
+</div>
       </div>
 
       <div class="list-head">
@@ -200,7 +198,7 @@
 
   <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore-compat.js"></script>
-<script src="firebase-config.js?v=20260106a"></script>
-<script src="app.js?v=20260106f"></script>
+<script src="firebase-config.js?v=20260106c"></script>
+<script src="app.js?v=20260106d"></script>
 </body>
 </html>
