@@ -730,12 +730,18 @@ function updateKeyboardInset(){
     state.stats.usage[ukey] = (state.stats.usage[ukey]||0) + 1;
     renderProductList();
     updateCartCount();
-    // Always update local state/UI immediately (LIVE sync is best-effort).
+    // Always update local UI/state immediately.
+    // In LIVE mode we still keep local state in sync so the basket updates instantly,
+    // while the Firestore write happens asynchronously.
     save();
-    renderAll();
+    renderBasket();
+    updateCartCount();
 
     if(liveCanWrite()){
+	      // Write to LIVE in background; local UI has already been updated.
 	      liveAddItem(prod, qty).catch(e=>{console.error(e); toast("Błąd LIVE zapisu");});
+    }else{
+      renderAll();
     }
   }
 
@@ -1293,7 +1299,7 @@ $("btnBack").addEventListener("click", () => showPanel("panelOrder"));
     // Register service worker
     if("serviceWorker" in navigator){
       // Cache-bust SW itself to ensure Chrome/iOS fetches the newest worker.
-      navigator.serviceWorker.register("./sw.js?v=20260106i").catch(()=>{});
+      navigator.serviceWorker.register("./sw.js?v=20260106o").catch(()=>{});
     }
   }
 
