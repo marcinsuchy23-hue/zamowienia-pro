@@ -27,7 +27,7 @@ function ensureInputVisible(el){
     // iOS/Chrome sometimes doesn't scroll focused inputs into view, especially near the bottom.
     const header = document.querySelector('.app-header');
     const headerH = header ? header.getBoundingClientRect().height : 0;
-    const topPad = Math.round(headerH + 14);   // safe space under the locked header
+    const topPad = Math.round(headerH + 24);   // safe space under the locked header
     const bottomPad = 22; // space above keyboard / bottom UI
     let viewH = (vv && vv.height) ? vv.height : window.innerHeight;
 
