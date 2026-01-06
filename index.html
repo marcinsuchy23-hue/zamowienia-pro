@@ -8,7 +8,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon-192.png">
   <!-- cache-bust for GitHub Pages / iOS Safari (updates show instantly) -->
-  <link rel="stylesheet" href="styles.css?v=20260106d" />
+  <link rel="stylesheet" href="styles.css?v=20260106e" />
 </head>
 <body>
   <header class="app-header">
@@ -39,13 +39,12 @@
         <!-- RZĄD 2: Ulubione + Odśwież + Baza + Export (max 1 linia na telefonie) -->
         <div class="row row--gap order-row2" style="align-items:flex-end">
           <div class="order-actions order-actions--4">
-            <button class="btn smallbtn favbtn" id="btnFav" type="button" >⭐<span class="hide-mobile"> Ulubione</span></button>
+            <button class="btn smallbtn favbtn" id="btnFav" type="button" title="Ulubione">⭐ Ulubione</button>
             <button class="btn iconbtn" id="btnQuickRefresh" type="button" title="Odśwież bazę">
               <span class="icon">🔄</span><span class="hide-mobile"> Odśwież bazę</span>
             </button>
-            <button class="btn" id="btnGoCatalog" type="button">📚<span class="hide-mobile"> Baza</span></button>
-            <button class="btn primary" id="btnGoExport" type="button">📤<span class="hide-mobile"> Eksport</span></button>
-            <button class="btn" id="btnCart" type="button">🧺<span class="hide-mobile"> Koszyk</span> <span class="badge" id="cartCount">0</span></button>
+            <button class="btn" id="btnGoCatalog" type="button">📚 Baza</button>
+            <button class="btn primary" id="btnGoExport" type="button">📤 Eksport</button>
           </div>
         </div>
 
@@ -55,7 +54,10 @@
             <label>Szukaj</label>
             <input id="filterSearch" placeholder="np. ogórek" autocomplete="off" />
           </div>
-</div>
+          <div class="order-actions">
+            <button class="btn" id="btnCart" type="button">🧺 Koszyk <span class="badge" id="cartCount">0</span></button>
+          </div>
+        </div>
       </div>
 
       <div class="list-head">
@@ -198,7 +200,7 @@
 
   <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore-compat.js"></script>
-<script src="firebase-config.js?v=20260106c"></script>
-<script src="app.js?v=20260106d"></script>
+<script src="firebase-config.js?v=20260106a"></script>
+<script src="app.js?v=20260106e"></script>
 </body>
 </html>
