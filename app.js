@@ -23,8 +23,12 @@ function ensureInputVisible(el){
     // Only on mobile where virtual keyboard can cover inputs
     const vv = window.visualViewport;
     const rect = el.getBoundingClientRect();
-    const topPad = 12;   // keep a bit under sticky header
-    const bottomPad = 16; // keep above keyboard
+    // Keep input BELOW sticky header (dynamic height) and ABOVE keyboard.
+    // iOS/Chrome sometimes doesn't scroll focused inputs into view, especially near the bottom.
+    const header = document.querySelector('.app-header');
+    const headerH = header ? header.getBoundingClientRect().height : 0;
+    const topPad = Math.round(headerH + 14);   // safe space under the locked header
+    const bottomPad = 22; // space above keyboard / bottom UI
     let viewH = (vv && vv.height) ? vv.height : window.innerHeight;
 
     // If element is below the visible viewport (covered by keyboard), scroll down a bit.
@@ -1179,7 +1183,7 @@ $("btnBack").addEventListener("click", () => showPanel("panelOrder"));
     // Register service worker
     if("serviceWorker" in navigator){
       // Cache-bust SW itself to ensure Chrome/iOS fetches the newest worker.
-      navigator.serviceWorker.register("./sw.js?v=20260106g").catch(()=>{});
+      navigator.serviceWorker.register("./sw.js?v=20260106i").catch(()=>{});
     }
   }
 
