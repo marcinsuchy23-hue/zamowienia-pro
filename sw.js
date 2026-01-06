@@ -1,10 +1,11 @@
 // Bump on every deploy: forces iOS/Safari to pick up the new UI
-const CACHE_NAME = "zamowienia-pro-pwa-v5-mobileheader-searchgrid";
+const CACHE_NAME = "zamowienia-pro-pwa-20260106a";
 const ASSETS = [
   "./",
   "./index.html",
-  "./styles.css",
-  "./app.js",
+  "./styles.css?v=20260106a",
+  "./app.js?v=20260106a",
+  "./firebase-config.js",
   "./manifest.webmanifest",
   "./icon-192.png",
   "./icon-512.png"

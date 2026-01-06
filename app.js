@@ -1115,7 +1115,7 @@ $("btnBack").addEventListener("click", () => showPanel("panelOrder"));
 
     // Register service worker
     if("serviceWorker" in navigator){
-      navigator.serviceWorker.register("./sw.js").catch(()=>{});
+      navigator.serviceWorker.register('./sw.js?v=20260106a').catch(()=>{});
     }
   }
 

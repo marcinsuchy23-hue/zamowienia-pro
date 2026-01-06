@@ -281,7 +281,7 @@ textarea{
 .miniIcon{width:44px; min-width:44px; padding:0; justify-content:center;}
 .miniIcon .badge{margin-left:6px}
 
-.favToggle{min-width:0; padding-left:12px; padding-right:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.favToggle{min-width:0; padding-left:12px; padding-right:12px; white-space:nowrap;}
 
 @media (max-width: 480px){
   /* Hide long labels on phone buttons (keep emoji/icon) */
@@ -292,8 +292,8 @@ textarea{
   .order-row1 .field{min-width:0;}
 
   .order-row2{margin-top:10px;}
-  .order-actions{display:grid; grid-template-columns: 1fr 44px 1fr 1fr; gap:10px; align-items:center; width:100%;}
-  .order-actions .btn{min-width:0; padding:10px 10px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .order-actions{display:grid; grid-template-columns:44px 44px 44px 44px; gap:10px; align-items:center; width:100%; justify-content:space-between;}
+  .order-actions .btn{min-width:0; padding:10px 10px; white-space:nowrap;}
   #btnGoCatalog, #btnGoExport{justify-content:center;}
 
   /* iOS/Safari grid sizing: allow the search field to shrink instead of being clipped/hidden */
