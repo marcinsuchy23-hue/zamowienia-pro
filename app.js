@@ -580,8 +580,8 @@ function updateKeyboardInset(){
         </div>
         <div class="item__right">
           <input class="qty" inputmode="text" placeholder="np. 2kg" />
-          <button class="starbtn" type="button" title="Ulubione">☆</button>
-          <button class="smallbtn" type="button">➕</button>
+          <button class="starbtn" title="Ulubione">☆</button>
+          <button class="smallbtn">➕</button>
         </div>
       `;
       const qtyEl = row.querySelector("input.qty");
@@ -633,7 +633,7 @@ function updateKeyboardInset(){
       }
 
 
-      const handleAdd = (ev) => {
+      btn.addEventListener("click", () => {
         const qty = norm(qtyEl.value);
         if(!qty){ toast("Wpisz ilość"); return; }
         lastActionKey = key;
@@ -651,11 +651,7 @@ function updateKeyboardInset(){
           ensureInputVisible(qtyEl);
         }, 30);
         setTimeout(()=>ensureInputVisible(qtyEl), 160);
-      };
-
-      btn.addEventListener("click", handleAdd);
-      btn.addEventListener("pointerup", handleAdd);
-      btn.addEventListener("touchend", handleAdd);
+      });
 
       qtyEl.addEventListener("keydown", (ev) => {
         if(ev.key === "Enter"){
@@ -663,7 +659,7 @@ function updateKeyboardInset(){
           rememberScroll();
           updateKeyboardInset();
           setTimeout(updateKeyboardInset, 0);
-          handleAdd(ev);
+          btn.click();
         }
       });
 
@@ -1302,7 +1298,7 @@ $("btnBack").addEventListener("click", () => showPanel("panelOrder"));
     // Register service worker
     if("serviceWorker" in navigator){
       // Cache-bust SW itself to ensure Chrome/iOS fetches the newest worker.
-      navigator.serviceWorker.register("./sw.js?v=FINAL20260106-01").catch(()=>{});
+      navigator.serviceWorker.register("./sw.js?v=20260106i").catch(()=>{});
     }
   }
 
