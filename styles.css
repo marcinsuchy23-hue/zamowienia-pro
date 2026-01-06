@@ -297,7 +297,11 @@ textarea{
   #btnGoCatalog, #btnGoExport{justify-content:center;}
 
   /* iOS/Safari grid sizing: allow the search field to shrink instead of being clipped/hidden */
-  .order-row3{margin-top:10px; display:grid; grid-template-columns: minmax(0,1fr) auto; gap:10px;}
+  .order-row3{margin-top:10px; display:flex; gap:10px; align-items:flex-end;}
+.order-row3 .field{flex:1 1 auto; min-width:0;}
+.order-row3 input{min-width:0;}
+#filterSearch{width:100%; min-width:0;}
+#btnCart{flex:0 0 auto; white-space:nowrap;}
   .order-row3 .field{min-width:0;}
   .order-row3 input{min-width:0; width:100%;}
   /* IMPORTANT: do NOT force 100% width inside the auto grid column,
