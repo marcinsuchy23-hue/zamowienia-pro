@@ -16,21 +16,32 @@
     }, delayMs);
   }
 
-  // Extra: when the virtual keyboard changes viewport size, keep scroll stable.
-  // IMPORTANT: visualViewport.resize fires also when the browser UI (address bar) hides/shows
-  // during normal scrolling. If we restore scroll then, it causes nasty "jumping" at top/bottom.
-  // So we only restore when an input is focused (keyboard open).
-  if(window.visualViewport){
-    let __vvTimer = null;
-    window.visualViewport.addEventListener("resize", ()=>{
-      const ae = document.activeElement;
-      const isInputFocused = ae && (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA") && !ae.readOnly && !ae.disabled;
-      if(!isInputFocused) return;
 
-      if(__vvTimer) clearTimeout(__vvTimer);
-      __vvTimer = setTimeout(()=>restoreScrollSoon(0), 60);
-    });
-  }
+function ensureInputVisible(el){
+  try{
+    if(!el) return;
+    // Only on mobile where virtual keyboard can cover inputs
+    const vv = window.visualViewport;
+    const rect = el.getBoundingClientRect();
+    const topPad = 12;   // keep a bit under sticky header
+    const bottomPad = 16; // keep above keyboard
+    let viewH = (vv && vv.height) ? vv.height : window.innerHeight;
+
+    // If element is below the visible viewport (covered by keyboard), scroll down a bit.
+    const desiredBottom = viewH - bottomPad;
+    if(rect.bottom > desiredBottom){
+      const delta = rect.bottom - desiredBottom;
+      window.scrollBy({ top: delta, left: 0, behavior: "smooth" });
+      return;
+    }
+    // If element is above the visible viewport (under header), scroll up a bit.
+    const desiredTop = topPad;
+    if(rect.top < desiredTop){
+      const delta = rect.top - desiredTop;
+      window.scrollBy({ top: delta, left: 0, behavior: "smooth" });
+    }
+  }catch(e){}
+}
 
   const LS_KEY = "zamowienia_pro_v1";
   const DEFAULT_CATS = ["Warzywa","Mięso","Nabiał","Mrożonki","Suchy magazyn","Przyprawy","Owoce","Ryby","Inne"];
@@ -543,8 +554,7 @@
       `;
       const qtyEl = row.querySelector("input.qty");
       if(qtyEl){
-        qtyEl.addEventListener("focus", ()=>{ rememberScroll(); });
-        qtyEl.addEventListener("blur", ()=>{ restoreScrollSoon(80); });
+        qtyEl.addEventListener("focus", ()=>{ rememberScroll(); setTimeout(()=>ensureInputVisible(qtyEl), 50); });
       }
 
       const starBtn = row.querySelector("button.starbtn");
@@ -568,7 +578,6 @@
         if(!qty){ toast("Wpisz ilość"); return; }
         addToOrder(p, qty);
         try{ qtyEl.blur(); }catch(e){}
-        restoreScrollSoon(120);
         row.classList.add("item--flash");
         setTimeout(()=>row.classList.remove("item--flash"), 650);
         qtyEl.value = "";
