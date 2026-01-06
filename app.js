@@ -17,13 +17,18 @@
   }
 
   // Extra: when the virtual keyboard changes viewport size, keep scroll stable.
-  // This helps Chrome/Android where focusing an input may "jump" the page.
+  // IMPORTANT: visualViewport.resize fires also when the browser UI (address bar) hides/shows
+  // during normal scrolling. If we restore scroll then, it causes nasty "jumping" at top/bottom.
+  // So we only restore when an input is focused (keyboard open).
   if(window.visualViewport){
     let __vvTimer = null;
     window.visualViewport.addEventListener("resize", ()=>{
-      // Debounce: restore scroll shortly after resize settles.
+      const ae = document.activeElement;
+      const isInputFocused = ae && (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA") && !ae.readOnly && !ae.disabled;
+      if(!isInputFocused) return;
+
       if(__vvTimer) clearTimeout(__vvTimer);
-      __vvTimer = setTimeout(()=>restoreScrollSoon(0), 50);
+      __vvTimer = setTimeout(()=>restoreScrollSoon(0), 60);
     });
   }
 
@@ -1172,7 +1177,7 @@ $("btnBack").addEventListener("click", () => showPanel("panelOrder"));
     // Register service worker
     if("serviceWorker" in navigator){
       // Cache-bust SW itself to ensure Chrome/iOS fetches the newest worker.
-      navigator.serviceWorker.register("./sw.js?v=20260106e").catch(()=>{});
+      navigator.serviceWorker.register("./sw.js?v=20260106f").catch(()=>{});
     }
   }
 
