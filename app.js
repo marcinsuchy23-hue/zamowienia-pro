@@ -588,10 +588,9 @@ function ensureInputVisible(el){
       btn.addEventListener("click", () => {
         const qty = norm(qtyEl.value);
         if(!qty){ toast("Wpisz ilość"); return; }
-        lastActionKey = key; lastActionFocus = false;
+        lastActionKey = key; lastActionFocus = true;
         addToOrder(p, qty);
-        try{ qtyEl.blur(); }catch(e){}
-        row.classList.add("item--flash");
+row.classList.add("item--flash");
         setTimeout(()=>row.classList.remove("item--flash"), 650);
         qtyEl.value = "";
       });
@@ -608,8 +607,10 @@ function ensureInputVisible(el){
     }
     updateCartCount();
 
-    // Restore scroll (and keep the interacted row visible under sticky header)
-    try{ window.scrollTo({ top: prevScrollY, left: 0, behavior: "auto" }); }catch(e){ window.scrollTo(0, prevScrollY); }
+    // Restore scroll (avoid fighting iOS keyboard viewport changes while editing quantity)
+    if(!lastActionFocus){
+      try{ window.scrollTo({ top: prevScrollY, left: 0, behavior: "auto" }); }catch(e){ window.scrollTo(0, prevScrollY); }
+    }
 
     try{
       if(keepKey){
@@ -630,7 +631,23 @@ function ensureInputVisible(el){
           }
         }
       }
+    
+
+    // If user is editing a quantity, re-focus the same row after re-render (Safari/iOS loses focus on DOM rebuild)
+    try{
+      if(lastActionFocus && keepKey){
+        const rowEl2 = document.querySelector(`.item[data-key="${cssEscape(keepKey)}"]`);
+        const input2 = rowEl2 ? rowEl2.querySelector('input.qty') : null;
+        if(input2){
+          // preventScroll avoids Safari doing its own jump; we handle visibility ourselves
+          setTimeout(()=>{
+            try{ input2.focus({ preventScroll: true }); }catch(e){ try{ input2.focus(); }catch(e2){} }
+            ensureInputVisible(input2);
+          }, 50);
+        }
+      }
     }catch(e){}
+}catch(e){}
 
     // one-shot: only keep last action for the next render
     if(!lastActionFocus) lastActionKey = "";
