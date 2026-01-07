@@ -164,6 +164,13 @@ function ensureInputVisible(el){
     }, {merge:true});
   }
 
+  async function liveTouchAlias(){
+    if(!LIVE.ready || !LIVE.aliasName) return;
+    try{
+      await liveAliasRef(LIVE.aliasName).set({ updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, {merge:true});
+    }catch(e){}
+  }
+
 
   async function liveCreateOrder(){
     const inp = liveEl("orderCode");
@@ -271,6 +278,7 @@ function ensureInputVisible(el){
       }
     });
     try{ await liveOrderRef(LIVE.orderId).set({ updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, {merge:true}); }catch(e){}
+    liveTouchAlias();
   }
 
   async function liveSetItemQty(it, newQty){
@@ -278,11 +286,13 @@ function ensureInputVisible(el){
     const ref = liveItemsCol().doc(it.id);
     await ref.set({ qty: newQty, updatedAt: firebase.firestore.FieldValue.serverTimestamp(), by: firebase.firestore.FieldValue.arrayUnion(by) }, {merge:true});
     try{ await liveOrderRef(LIVE.orderId).set({ updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, {merge:true}); }catch(e){}
+    liveTouchAlias();
   }
 
   async function liveDeleteItem(it){
     await liveItemsCol().doc(it.id).delete();
     try{ await liveOrderRef(LIVE.orderId).set({ updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, {merge:true}); }catch(e){}
+    liveTouchAlias();
   }
 
 
@@ -1116,16 +1126,58 @@ function renderExport(){
 
   const ORDERS_UI = { tab: "orders", q: "", status: "all", sort: "updated_desc" };
   let __liveOrdersCache = null; // [{name, status, orderId, updatedAt, createdAt, __aliasId}]
+  let __ordersUnsub = null;
+
+  function ordersIsOpen(){
+    const m = ordersModalEl("ordersModal");
+    return !!(m && !m.classList.contains("hidden"));
+  }
+
+  function ordersStartLiveListener(){
+    if(!LIVE.ready) return;
+    if(__ordersUnsub) return;
+    try{
+      __ordersUnsub = LIVE.db.collection("orderAliases").orderBy("updatedAt","desc").limit(200)
+        .onSnapshot((snap)=>{
+          const rows = [];
+          snap.forEach(doc=>{
+            const d = doc.data()||{};
+            const name = norm(d.name || d.displayName || d.title || "") || (d.orderId || doc.id);
+            const status = (d.status||"open");
+            const updatedAt = d.updatedAt && d.updatedAt.toMillis ? d.updatedAt.toMillis() : (d.updatedAt || 0);
+            const createdAt = d.createdAt && d.createdAt.toMillis ? d.createdAt.toMillis() : (d.createdAt || 0);
+            const orderId = d.orderId || "";
+            rows.push({ name, status, orderId, updatedAt, createdAt, __aliasId: doc.id });
+          });
+          __liveOrdersCache = rows;
+          if(ordersIsOpen() && ORDERS_UI.tab === "orders"){
+            ordersRender();
+          }
+        }, (err)=>{ console.warn(err); });
+    }catch(e){
+      console.warn(e);
+    }
+  }
+
+  function ordersStopLiveListener(){
+    if(__ordersUnsub){
+      try{ __ordersUnsub(); }catch(e){}
+      __ordersUnsub = null;
+    }
+  }
+
 
   function ordersOpen(tab){
     if(tab) ORDERS_UI.tab = tab;
     const m = ordersModalEl("ordersModal");
     if(m){ m.classList.remove("hidden"); m.setAttribute("aria-hidden","false"); }
+    ordersStartLiveListener();
     ordersRender();
   }
   function ordersClose(){
     const m = ordersModalEl("ordersModal");
     if(m){ m.classList.add("hidden"); m.setAttribute("aria-hidden","true"); }
+    ordersStopLiveListener();
   }
 
   function statusBadgeHtml(st){
@@ -1234,7 +1286,7 @@ function renderExport(){
         <div class="order-item">
           <div class="order-item__meta">
             <div class="order-item__title">${title}</div>
-            <div class="order-item__sub">${date} <span class="dot">•</span> ${kind}${meta ? " <span class=\"dot\">•</span> " + meta : ""}</div>
+            <div class="order-item__sub">${date} <span class="dot">•</span> ${kind}${meta ? " <span class='dot'>•</span> " + meta : ""}</div>
           </div>
           <div class="order-item__actions">
             <button class="btn" type="button" onclick="window.__ordersPrint('${id}')">📄 PDF</button>
@@ -1330,6 +1382,31 @@ function renderExport(){
       toast("Nie udało się usunąć");
     }
   }
+  async function liveCloseOrderRow(row){
+    if(!LIVE.ready) return;
+    if(!row || !row.orderId) return;
+    if((row.status||"open") === "closed"){ toast("Już zamknięte"); return; }
+    const name = row.name || row.orderId;
+    if(!confirm(`Zamknąć zamówienie „${name}”?\nPo zamknięciu nie da się dodawać.`)) return;
+    try{
+      await liveOrderRef(row.orderId).set({
+        status:"closed",
+        closedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        closedBy: norm(state.settings.userName)||""
+      }, {merge:true});
+      if(row.__aliasId){
+        await LIVE.db.collection("orderAliases").doc(row.__aliasId).set({
+          status:"closed",
+          closedAt: firebase.firestore.FieldValue.serverTimestamp(),
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        }, {merge:true});
+      }
+      toast("Zamknięto");
+    }catch(e){
+      console.error(e);
+      toast("Nie udało się zamknąć");
+    }
+  }
 
   async function ordersRender(){
     ordersSyncControls();
@@ -1363,6 +1440,10 @@ function renderExport(){
         const dt = fmtDate(r.updatedAt || r.createdAt || 0);
         const oid = escapeAttr(r.orderId || "");
         const aliasId = escapeAttr(r.__aliasId || "");
+        const canClose = (r.status||"open") !== "closed";
+        const closeBtn = canClose
+          ? `<button class="btn" type="button" onclick="window.__orderClose('${oid}','${aliasId}')">Zamknij</button>`
+          : `<button class="btn" type="button" disabled>Zamknięte</button>`;
         return `
           <div class="order-item">
             <div class="order-item__meta">
@@ -1371,6 +1452,7 @@ function renderExport(){
             </div>
             <div class="order-item__actions">
               <button class="btn" type="button" onclick="window.__orderOpen('${escapeAttr(r.name||"")}')">Otwórz</button>
+              ${closeBtn}
               <button class="btn" type="button" onclick="window.__orderPdf('${oid}','standard')">📄 Std</button>
               <button class="btn" type="button" onclick="window.__orderPdf('${oid}','hurtownia')">📄 Hurt</button>
               <button class="btn danger" type="button" onclick="window.__orderDel('${oid}','${aliasId}')">🗑</button>
@@ -1393,6 +1475,10 @@ function renderExport(){
       const id = escapeAttr(r.id || "");
       const hasStd = !!r.lastPdfStd;
       const hasHurt = !!r.lastPdfHurt;
+      const canClose = (r.status||"open") !== "closed";
+      const closeBtn = canClose
+        ? `<button class="btn" type="button" onclick="window.__localOrderClose('${id}')">Zamknij</button>`
+        : `<button class="btn" type="button" disabled>Zamknięte</button>`;
       return `
         <div class="order-item">
           <div class="order-item__meta">
@@ -1402,6 +1488,7 @@ function renderExport(){
           <div class="order-item__actions">
             <button class="btn" type="button" ${hasStd ? `onclick="window.__localPdf('${escapeAttr(r.lastPdfStd)}')"` : "disabled"}>📄 Std</button>
             <button class="btn" type="button" ${hasHurt ? `onclick="window.__localPdf('${escapeAttr(r.lastPdfHurt)}')"` : "disabled"}>📄 Hurt</button>
+            ${closeBtn}
             <button class="btn danger" type="button" onclick="window.__localOrderDel('${id}')">🗑</button>
           </div>
         </div>`;
@@ -1423,6 +1510,9 @@ function renderExport(){
   window.__orderDel = (orderId, aliasId)=>{
     liveDeleteOrderRow({ orderId, __aliasId: aliasId });
   };
+  window.__orderClose = (orderId, aliasId)=>{
+    liveCloseOrderRow({ orderId, __aliasId: aliasId });
+  };
   window.__orderOpen = async (name)=>{
     // otwórz / dołącz po nazwie
     if(!LIVE.ready){ toast("LIVE nie jest włączone"); return; }
@@ -1441,6 +1531,33 @@ function renderExport(){
     localOrdersSave(list);
     const cur = localStorage.getItem(LOCAL_CURRENT_KEY);
     if(cur === id) localStorage.removeItem(LOCAL_CURRENT_KEY);
+    ordersRender();
+  };
+
+  window.__localOrderClose = (id)=>{
+    const list = localOrdersLoad();
+    const it = list.find(x=>x && x.id === id);
+    if(!it){ toast("Brak zamówienia"); return; }
+    if((it.status||"open")==="closed"){ toast("Już zamknięte"); return; }
+    if(!confirm(`Zamknąć zamówienie „${it.name||"Zamówienie"}”?`)) return;
+    it.status = "closed";
+    it.updatedAt = Date.now();
+    localOrdersSave(list);
+    toast("Zamknięto");
+    ordersRender();
+  };
+
+
+  window.__localOrderClose = (id)=>{
+    const list = localOrdersLoad();
+    const it = list.find(x=>x && x.id === id);
+    if(!it){ toast("Brak zamówienia"); return; }
+    if((it.status||"open") === "closed"){ toast("Już zamknięte"); return; }
+    if(!confirm(`Zamknąć zamówienie „${it.name||'Zamówienie'}”?\nPo zamknięciu nie da się dodawać.`)) return;
+    it.status = "closed";
+    it.updatedAt = Date.now();
+    localOrdersSave(list);
+    toast("Zamknięto");
     ordersRender();
   };
 
