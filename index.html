@@ -204,13 +204,30 @@
       <div class="modal__head">
         <div class="modal__title" id="ordersTitle">📂 Zamówienia</div>
         <div class="row row--gap" style="justify-content:flex-end">
-          <button class="btn danger" id="btnOrdersClearAll" type="button" title="Usuń całą historię">🗑 Usuń wszystko</button>
+          <button class="btn danger" id="btnOrdersClearAll" type="button" title="Usuń wpisy (zależnie od zakładki)">🗑 Usuń wszystko</button>
           <button class="btn" id="btnOrdersClose" type="button">Zamknij</button>
         </div>
       </div>
-      <div class="small" style="opacity:.85;margin:6px 0 10px">
-        Tu są zapisane wydruki PDF (Standard/Hurtownia). Kliknij PDF, żeby ponownie wydrukować. 🗑 usuwa wpis z listy.
+
+      <div class="row row--gap" style="margin:6px 0 10px; flex-wrap:wrap">
+        <button class="btn" id="ordersTabOrders" type="button">Lista zamówień</button>
+        <button class="btn" id="ordersTabPdfs" type="button">PDF</button>
+        <div style="flex:1"></div>
+        <input id="ordersSearch" class="input" type="search" placeholder="Szukaj…" style="max-width:240px" />
+        <select id="ordersStatus" class="select" style="max-width:170px">
+          <option value="all">Wszystkie</option>
+          <option value="open">Otwarte</option>
+          <option value="closed">Zamknięte</option>
+        </select>
+        <select id="ordersSort" class="select" style="max-width:200px">
+          <option value="updated_desc">Najnowsze</option>
+          <option value="updated_asc">Najstarsze</option>
+          <option value="name_asc">Nazwa A→Z</option>
+          <option value="name_desc">Nazwa Z→A</option>
+        </select>
       </div>
+
+      <div class="small" id="ordersHelp" style="opacity:.85;margin:0 0 10px"></div>
       <div id="ordersList" class="orders-list"></div>
     </div>
   </div>

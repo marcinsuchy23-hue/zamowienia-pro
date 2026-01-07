@@ -149,15 +149,18 @@ function ensureInputVisible(el){
   }
   async function liveSetAlias(name, orderId){
     await liveAliasRef(name).set({
+      name: String(name||"").trim(),
       orderId,
       status: "open",
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
       updatedAt: firebase.firestore.FieldValue.serverTimestamp()
     }, {merge:true});
   }
   async function liveCloseAlias(name){
     await liveAliasRef(name).set({
       status: "closed",
-      closedAt: firebase.firestore.FieldValue.serverTimestamp()
+      closedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
     }, {merge:true});
   }
 
@@ -182,6 +185,7 @@ function ensureInputVisible(el){
     await liveOrderRef(orderId).set({
       status: "open",
       createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
       name
     }, {merge:true});
 
@@ -266,16 +270,19 @@ function ensureInputVisible(el){
         tx.set(ref, { name: d.name||p.name, category: d.category||p.category||"", section: d.section||section, qty: newQty, by: byArr, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, {merge:true});
       }
     });
+    try{ await liveOrderRef(LIVE.orderId).set({ updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, {merge:true}); }catch(e){}
   }
 
   async function liveSetItemQty(it, newQty){
     const by = norm(state.settings.userName)||"—";
     const ref = liveItemsCol().doc(it.id);
     await ref.set({ qty: newQty, updatedAt: firebase.firestore.FieldValue.serverTimestamp(), by: firebase.firestore.FieldValue.arrayUnion(by) }, {merge:true});
+    try{ await liveOrderRef(LIVE.orderId).set({ updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, {merge:true}); }catch(e){}
   }
 
   async function liveDeleteItem(it){
     await liveItemsCol().doc(it.id).delete();
+    try{ await liveOrderRef(LIVE.orderId).set({ updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, {merge:true}); }catch(e){}
   }
 
 
@@ -992,6 +999,61 @@ function renderExport(){
   // --- Historia PDF (lokalnie) ---
   const HISTORY_KEY = "zamowienia_pro_history_v1";
 
+  // --- Lokalna lista zamówień (gdy LIVE wyłączone) ---
+  const LOCAL_ORDERS_KEY = "zamowienia_pro_orders_local_v1";
+  const LOCAL_CURRENT_KEY = "zamowienia_pro_orders_current_v1";
+
+  function localOrdersLoad(){
+    try{ return JSON.parse(localStorage.getItem(LOCAL_ORDERS_KEY) || "[]") || []; }catch(e){ return []; }
+  }
+  function localOrdersSave(list){
+    try{ localStorage.setItem(LOCAL_ORDERS_KEY, JSON.stringify(list || [])); }catch(e){}
+  }
+  function localOrdersEnsureCurrent(){
+    if(LIVE.ready) return;
+    let id = localStorage.getItem(LOCAL_CURRENT_KEY) || "";
+    if(id) return;
+    id = "o" + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+    localStorage.setItem(LOCAL_CURRENT_KEY, id);
+    const list = localOrdersLoad();
+    list.unshift({ id, name: state.settings.userName ? ("Zamówienie – " + state.settings.userName) : "Zamówienie", status: "open", createdAt: Date.now(), updatedAt: Date.now(), lastPdfStd: "", lastPdfHurt: "" });
+    localOrdersSave(list);
+  }
+  function localOrdersTouch(){
+    if(LIVE.ready) return;
+    localOrdersEnsureCurrent();
+    const id = localStorage.getItem(LOCAL_CURRENT_KEY);
+    const list = localOrdersLoad();
+    const i = list.findIndex(x=>x && x.id === id);
+    if(i>=0){ list[i].updatedAt = Date.now(); }
+    localOrdersSave(list);
+  }
+  function localOrdersSetLastPdf(kind, pdfId){
+    if(LIVE.ready) return;
+    localOrdersEnsureCurrent();
+    const id = localStorage.getItem(LOCAL_CURRENT_KEY);
+    const list = localOrdersLoad();
+    const i = list.findIndex(x=>x && x.id === id);
+    if(i>=0){
+      if(kind === "hurtownia") list[i].lastPdfHurt = pdfId;
+      else list[i].lastPdfStd = pdfId;
+      list[i].updatedAt = Date.now();
+    }
+    localOrdersSave(list);
+  }
+  function localOrdersNew(){
+    if(LIVE.ready) return;
+    localOrdersEnsureCurrent();
+    const cur = localStorage.getItem(LOCAL_CURRENT_KEY);
+    const list = localOrdersLoad();
+    const i = list.findIndex(x=>x && x.id === cur);
+    if(i>=0){ list[i].status = "closed"; list[i].updatedAt = Date.now(); }
+    const id = "o" + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+    localStorage.setItem(LOCAL_CURRENT_KEY, id);
+    list.unshift({ id, name: state.settings.userName ? ("Zamówienie – " + state.settings.userName) : "Zamówienie", status: "open", createdAt: Date.now(), updatedAt: Date.now(), lastPdfStd: "", lastPdfHurt: "" });
+    localOrdersSave(list);
+  }
+
   function loadHistory(){
     try{ return JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]") || []; }catch(e){ return []; }
   }
@@ -1049,26 +1111,119 @@ function renderExport(){
     }
   }
 
-  // --- UI: manager zamówień (historia) ---
+  // --- UI: Menedżer zamówień (LIVE + lokalnie) ---
   function ordersModalEl(id){ return document.getElementById(id); }
-  function ordersOpen(){
-    renderOrdersHistory();
+
+  const ORDERS_UI = { tab: "orders", q: "", status: "all", sort: "updated_desc" };
+  let __liveOrdersCache = null; // [{name, status, orderId, updatedAt, createdAt, __aliasId}]
+
+  function ordersOpen(tab){
+    if(tab) ORDERS_UI.tab = tab;
     const m = ordersModalEl("ordersModal");
     if(m){ m.classList.remove("hidden"); m.setAttribute("aria-hidden","false"); }
+    ordersRender();
   }
   function ordersClose(){
     const m = ordersModalEl("ordersModal");
     if(m){ m.classList.add("hidden"); m.setAttribute("aria-hidden","true"); }
   }
-  function renderOrdersHistory(){
+
+  function statusBadgeHtml(st){
+    const s = (st||"").toLowerCase();
+    if(s === "closed") return `<span class="status-badge status-badge--closed">Zamknięte</span>`;
+    return `<span class="status-badge status-badge--open">Otwarte</span>`;
+  }
+
+  function ordersApplyUiFromControls(){
+    const q = ordersModalEl("ordersSearch");
+    const st = ordersModalEl("ordersStatus");
+    const so = ordersModalEl("ordersSort");
+    ORDERS_UI.q = norm(q ? q.value : "");
+    ORDERS_UI.status = st ? st.value : "all";
+    ORDERS_UI.sort = so ? so.value : "updated_desc";
+  }
+
+  function ordersSyncControls(){
+    const t1 = ordersModalEl("ordersTabOrders");
+    const t2 = ordersModalEl("ordersTabPdfs");
+    if(t1) t1.classList.toggle("primary", ORDERS_UI.tab === "orders");
+    if(t2) t2.classList.toggle("primary", ORDERS_UI.tab === "pdfs");
+  }
+
+  async function liveFetchOrdersList(){
+    if(!LIVE.ready) return [];
+    try{
+      const snap = await LIVE.db.collection("orderAliases").orderBy("updatedAt","desc").limit(200).get();
+      const rows = [];
+      snap.forEach(doc=>{
+        const d = doc.data()||{};
+        const name = norm(d.name || d.displayName || d.title || "") || (d.orderId || doc.id);
+        const status = (d.status||"open");
+        const updatedAt = d.updatedAt && d.updatedAt.toMillis ? d.updatedAt.toMillis() : (d.updatedAt || 0);
+        const createdAt = d.createdAt && d.createdAt.toMillis ? d.createdAt.toMillis() : (d.createdAt || 0);
+        const orderId = d.orderId || "";
+        rows.push({ name, status, orderId, updatedAt, createdAt, __aliasId: doc.id });
+      });
+
+      // dopnij createdAt/updatedAt z dokumentu order, jeśli brakuje
+      const need = rows.filter(r=>r.orderId && (!r.createdAt || !r.updatedAt));
+      await Promise.all(need.map(async (r)=>{
+        try{
+          const od = await liveOrderRef(r.orderId).get();
+          const d = od.data()||{};
+          if(!r.createdAt){
+            const ca = d.createdAt && d.createdAt.toMillis ? d.createdAt.toMillis() : (d.createdAt || 0);
+            if(ca) r.createdAt = ca;
+          }
+          if(!r.updatedAt){
+            const ua = d.updatedAt && d.updatedAt.toMillis ? d.updatedAt.toMillis() : (d.updatedAt || 0);
+            if(ua) r.updatedAt = ua;
+          }
+          if(!r.name && d.name) r.name = norm(d.name);
+        }catch(e){}
+      }));
+
+      __liveOrdersCache = rows;
+      return rows;
+    }catch(e){
+      console.warn(e);
+      return [];
+    }
+  }
+
+  function sortRows(rows){
+    const s = ORDERS_UI.sort || "updated_desc";
+    const byUpd = (a,b)=>(b.updatedAt||0) - (a.updatedAt||0);
+    const byUpdAsc = (a,b)=>(a.updatedAt||0) - (b.updatedAt||0);
+    const byName = (a,b)=>(a.name||"").localeCompare(b.name||"","pl");
+    const byNameDesc = (a,b)=>(b.name||"").localeCompare(a.name||"","pl");
+    if(s === "updated_asc") rows.sort(byUpdAsc);
+    else if(s === "name_asc") rows.sort(byName);
+    else if(s === "name_desc") rows.sort(byNameDesc);
+    else rows.sort(byUpd);
+  }
+
+  function filterRows(rows){
+    const q = (ORDERS_UI.q||"").toLowerCase();
+    const st = ORDERS_UI.status || "all";
+    let arr = rows.slice();
+    if(st !== "all") arr = arr.filter(r => (r.status||"open") === st);
+    if(q) arr = arr.filter(r => ((r.name||"") + " " + (r.orderId||"")).toLowerCase().includes(q));
+    return arr;
+  }
+
+  function renderPdfHistory(){
     const box = ordersModalEl("ordersList");
+    const help = ordersModalEl("ordersHelp");
+    if(help){
+      help.textContent = "Tu są zapisane wydruki PDF (Standard/Hurtownia). Kliknij PDF, żeby ponownie wydrukować. 🗑 usuwa wpis z listy.";
+    }
     if(!box) return;
     const list = loadHistory();
     if(!list.length){
       box.innerHTML = '<div class="small" style="opacity:.85">Brak zapisanych PDF. Wydrukuj „PDF Standard” albo „PDF Hurtownia”, a pojawią się tutaj.</div>';
       return;
     }
-
     box.innerHTML = list.map(x=>{
       const kind = x.kind === "hurtownia" ? "Hurtownia" : "Standard";
       const title = escapeHtml(x.title || "Zamówienie");
@@ -1079,7 +1234,7 @@ function renderExport(){
         <div class="order-item">
           <div class="order-item__meta">
             <div class="order-item__title">${title}</div>
-            <div class="order-item__sub">${date} • ${kind}${meta ? " • " + meta : ""}</div>
+            <div class="order-item__sub">${date} <span class="dot">•</span> ${kind}${meta ? " <span class=\"dot\">•</span> " + meta : ""}</div>
           </div>
           <div class="order-item__actions">
             <button class="btn" type="button" onclick="window.__ordersPrint('${id}')">📄 PDF</button>
@@ -1089,7 +1244,171 @@ function renderExport(){
     }).join("");
   }
 
-  // expose minimal handlers (inline onclick)
+  async function livePrintOrder(orderId, kind){
+    if(!LIVE.ready || !orderId){ toast("Brak danych zamówienia"); return; }
+    const kindNorm = (kind === "hurtownia") ? "hurtownia" : "standard";
+    try{
+      const odSnap = await liveOrderRef(orderId).get();
+      const od = odSnap.data()||{};
+      const orderName = norm(od.name) || "Zamówienie";
+
+      const itemsSnap = await liveOrderRef(orderId).collection("items").get();
+      const items = [];
+      itemsSnap.forEach(doc=>{
+        const d = doc.data()||{};
+        items.push({ name: d.name||"", category: d.category||"", qty: d.qty||"", updatedAt: d.updatedAt && d.updatedAt.toMillis ? d.updatedAt.toMillis() : (d.updatedAt||0), by: (d.by && Array.isArray(d.by)) ? d.by.join(", ") : (d.by||"") });
+      });
+      if(!items.length){ toast("To zamówienie nie ma pozycji"); return; }
+
+      // zbuduj meta
+      const bySet = new Set();
+      for(const it of items){ if(it.by) String(it.by).split(",").map(s=>norm(s)).filter(Boolean).forEach(s=>bySet.add(s)); }
+      const meta = `Zamówione przez: ${Array.from(bySet).join(", ") || "-"}`;
+      const t = items.reduce((m,x)=>Math.max(m, x.updatedAt||0), 0);
+      const dateStr = fmtDate(t || Date.now());
+
+      // grupowanie jak w export
+      items.sort((a,b)=> (a.category||"").localeCompare(b.category||"","pl") || (a.name||"").localeCompare(b.name||"","pl"));
+      const groups = new Map();
+      for(const it of items){
+        const k = capFirst(it.category) || "Inne";
+        if(!groups.has(k)) groups.set(k, []);
+        groups.get(k).push(it);
+      }
+      const bodyLines = [];
+      for(const [cat, arr] of groups.entries()){
+        bodyLines.push(`=== ${cat.toUpperCase()} ===`);
+        for(const it of arr){ bodyLines.push(`- ${it.name}: ${it.qty}`); }
+        bodyLines.push("");
+      }
+      const textBody = bodyLines.join("\n").trim();
+
+      const out = { title: orderName, date: dateStr, meta, textBody, textFull: [meta, `Data: ${dateStr}`, "", textBody].join("\n").trim() };
+
+      if(kindNorm === "standard"){
+        const html = buildStdPrintHtml(out);
+        historyAdd({ id: "p" + Date.now().toString(36) + Math.random().toString(36).slice(2,6), kind: "standard", title: out.title, date: out.date, meta: out.meta, createdAt: Date.now(), html, orderId, orderName });
+        openPrintDoc(html, "PRINT_STD");
+      } else {
+        const html = buildHurtPrintHtml(out);
+        historyAdd({ id: "p" + Date.now().toString(36) + Math.random().toString(36).slice(2,6), kind: "hurtownia", title: out.title, date: out.date, meta: out.meta, createdAt: Date.now(), html, orderId, orderName });
+        openPrintDoc(html, "PRINT_HURT");
+      }
+    }catch(e){
+      console.error(e);
+      toast("Nie udało się przygotować PDF");
+    }
+  }
+
+  async function liveDeleteOrderRow(row){
+    if(!LIVE.ready) return;
+    if(!row || !row.orderId) return;
+    const name = row.name || row.orderId;
+    if(!confirm(`Usunąć zamówienie „${name}”?\nTo skasuje pozycje i wpis z listy.`)) return;
+    try{
+      // delete items in chunks
+      const itemsRef = liveOrderRef(row.orderId).collection("items");
+      const snap = await itemsRef.get();
+      const docs = snap.docs || [];
+      for(let i=0;i<docs.length;i+=400){
+        const batch = LIVE.db.batch();
+        for(const d of docs.slice(i,i+400)) batch.delete(d.ref);
+        await batch.commit();
+      }
+      await liveOrderRef(row.orderId).delete();
+      if(row.__aliasId) await LIVE.db.collection("orderAliases").doc(row.__aliasId).delete();
+      if(LIVE.orderId === row.orderId){
+        LIVE.orderId = "";
+        localStorage.removeItem(LS_ORDER);
+        localStorage.removeItem("LIVE_ALIAS");
+        $("hdrSub").textContent = "—";
+      }
+      toast("Usunięto");
+      await ordersRender();
+    }catch(e){
+      console.error(e);
+      toast("Nie udało się usunąć");
+    }
+  }
+
+  async function ordersRender(){
+    ordersSyncControls();
+    ordersApplyUiFromControls();
+    const help = ordersModalEl("ordersHelp");
+    const box = ordersModalEl("ordersList");
+    if(!box) return;
+
+    if(ORDERS_UI.tab === "pdfs"){
+      renderPdfHistory();
+      return;
+    }
+
+    if(help){
+      help.textContent = LIVE.ready
+        ? "Lista zamówień LIVE: nazwa, data, status. PDF drukuje bez przełączania zamówienia. 🗑 usuwa zamówienie z bazy (razem z pozycjami)."
+        : "Lista lokalna (bez LIVE): zapisuje się po „Kopiuj” i „Nowe zamówienie”.";
+    }
+
+    box.innerHTML = '<div class="small" style="opacity:.85">Ładowanie…</div>';
+
+    // LIVE
+    if(LIVE.ready){
+      const rows = (__liveOrdersCache && __liveOrdersCache.length) ? __liveOrdersCache : await liveFetchOrdersList();
+      let arr = filterRows(rows);
+      sortRows(arr);
+      if(!arr.length){ box.innerHTML = '<div class="small" style="opacity:.85">Brak zamówień do pokazania.</div>'; return; }
+
+      box.innerHTML = arr.map(r=>{
+        const title = escapeHtml(r.name || r.orderId || "Zamówienie");
+        const dt = fmtDate(r.updatedAt || r.createdAt || 0);
+        const oid = escapeAttr(r.orderId || "");
+        const aliasId = escapeAttr(r.__aliasId || "");
+        return `
+          <div class="order-item">
+            <div class="order-item__meta">
+              <div class="order-item__title">${title}</div>
+              <div class="order-item__sub">${escapeHtml(dt)} <span class="dot">•</span> ${statusBadgeHtml(r.status)} <span class="dot">•</span> <span style="opacity:.85">${escapeHtml(r.orderId||"")}</span></div>
+            </div>
+            <div class="order-item__actions">
+              <button class="btn" type="button" onclick="window.__orderOpen('${escapeAttr(r.name||"")}')">Otwórz</button>
+              <button class="btn" type="button" onclick="window.__orderPdf('${oid}','standard')">📄 Std</button>
+              <button class="btn" type="button" onclick="window.__orderPdf('${oid}','hurtownia')">📄 Hurt</button>
+              <button class="btn danger" type="button" onclick="window.__orderDel('${oid}','${aliasId}')">🗑</button>
+            </div>
+          </div>`;
+      }).join("");
+      return;
+    }
+
+    // OFFLINE (lokalna lista zamówień)
+    localOrdersEnsureCurrent();
+    let rows = localOrdersLoad();
+    rows = filterRows(rows);
+    sortRows(rows);
+    if(!rows.length){ box.innerHTML = '<div class="small" style="opacity:.85">Brak zamówień do pokazania.</div>'; return; }
+
+    box.innerHTML = rows.map(r=>{
+      const title = escapeHtml(r.name || "Zamówienie");
+      const dt = fmtDate(r.updatedAt || r.createdAt || 0);
+      const id = escapeAttr(r.id || "");
+      const hasStd = !!r.lastPdfStd;
+      const hasHurt = !!r.lastPdfHurt;
+      return `
+        <div class="order-item">
+          <div class="order-item__meta">
+            <div class="order-item__title">${title}</div>
+            <div class="order-item__sub">${escapeHtml(dt)} <span class="dot">•</span> ${statusBadgeHtml(r.status)}</div>
+          </div>
+          <div class="order-item__actions">
+            <button class="btn" type="button" ${hasStd ? `onclick="window.__localPdf('${escapeAttr(r.lastPdfStd)}')"` : "disabled"}>📄 Std</button>
+            <button class="btn" type="button" ${hasHurt ? `onclick="window.__localPdf('${escapeAttr(r.lastPdfHurt)}')"` : "disabled"}>📄 Hurt</button>
+            <button class="btn danger" type="button" onclick="window.__localOrderDel('${id}')">🗑</button>
+          </div>
+        </div>`;
+    }).join("");
+  }
+
+  // expose handlers for inline buttons
   window.__ordersPrint = (id)=>{
     const e = loadHistory().find(x=>x && x.id === id);
     if(!e || !e.html){ toast("Brak danych PDF"); return; }
@@ -1098,7 +1417,31 @@ function renderExport(){
   window.__ordersDel = (id)=>{
     if(!confirm("Usunąć ten wpis z listy?")) return;
     historyDelete(id);
-    renderOrdersHistory();
+    ordersRender();
+  };
+  window.__orderPdf = (orderId, kind)=>{ livePrintOrder(orderId, kind); };
+  window.__orderDel = (orderId, aliasId)=>{
+    liveDeleteOrderRow({ orderId, __aliasId: aliasId });
+  };
+  window.__orderOpen = async (name)=>{
+    // otwórz / dołącz po nazwie
+    if(!LIVE.ready){ toast("LIVE nie jest włączone"); return; }
+    const ok = await liveJoinOrder(name);
+    if(ok){ ordersClose(); showPanel("panelOrder"); }
+  };
+
+  window.__localPdf = (histId)=>{
+    const e = loadHistory().find(x=>x && x.id === histId);
+    if(!e || !e.html){ toast("Brak danych PDF"); return; }
+    openPrintDoc(e.html, "PRINT_FROM_LOCAL");
+  };
+  window.__localOrderDel = (id)=>{
+    if(!confirm("Usunąć to zamówienie z listy lokalnej?")) return;
+    const list = localOrdersLoad().filter(x=>x && x.id !== id);
+    localOrdersSave(list);
+    const cur = localStorage.getItem(LOCAL_CURRENT_KEY);
+    if(cur === id) localStorage.removeItem(LOCAL_CURRENT_KEY);
+    ordersRender();
   };
 
 
@@ -1144,6 +1487,7 @@ function renderExport(){
 
   function newOrder(){
     if(!confirm("Wyczyścić koszyk i zacząć nowe zamówienie?")) return;
+    localOrdersNew();
     state.order.items = [];
     save();
     // reset filters for convenience
@@ -1155,6 +1499,7 @@ function renderExport(){
   }
 
   function copyExport(){
+    localOrdersTouch();
     const out = buildExportText();
     const txt = out.textFull || out.textBody || "";
     if(navigator.clipboard && navigator.clipboard.writeText){
@@ -1175,15 +1520,15 @@ function renderExport(){
     toast("Skopiowano");
   }
 
-  function printExport(){
-    const out = buildExportText();
-    const html = `
+  // --- HTML builders for PDF (reuse for LIVE printing) ---
+  function buildStdPrintHtml(out){
+    return `
 <!doctype html>
 <html lang="pl">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Zamówienie</title>
+<title>${escapeHtml(out.title || "Zamówienie")}</title>
 <style>
   body{font-family: Arial, sans-serif; padding:18px; color:#000;}
   .wrap{border:2px solid #000; border-radius:14px; padding:14px;}
@@ -1198,33 +1543,18 @@ function renderExport(){
 <body>
   <div class="wrap">
     <div class="top">
-      <div class="h1">ZAMÓWIENIE</div>
-      <div class="dt">${escapeHtml(out.date)}</div>
+      <div class="h1">${escapeHtml(out.title || "ZAMÓWIENIE")}</div>
+      <div class="dt">${escapeHtml(out.date || "—")}</div>
     </div>
-    <div class="meta"><b>${escapeHtml(out.meta)}</b></div>
+    <div class="meta"><b>${escapeHtml(out.meta || "")}</b></div>
     <pre>${escapeHtml(out.textBody || '')}</pre>
   </div>
 <script>window.onload=()=>{ setTimeout(()=>window.print(), 150); };</script>
 </body>
 </html>`;
-
-    // Zapisz do historii (żeby dało się wrócić do PDF)
-    historyAdd({
-      id: "p" + Date.now().toString(36) + Math.random().toString(36).slice(2,6),
-      kind: "standard",
-      title: out.title || "Zamówienie",
-      date: out.date || "—",
-      meta: out.meta || "",
-      createdAt: Date.now(),
-      html
-    });
-
-    openPrintDoc(html, "PRINT_STD");
   }
 
-
-  function printExportHurt(){
-    const out = buildExportText();
+  function buildHurtPrintHtml(out){
     const meta = out.meta || "";
     const lines = (out.textBody || "").split("\n");
     const typed = [];
@@ -1248,10 +1578,7 @@ function renderExport(){
       if(col===0) col=1;
       else { pages.push(page); page=[[],[]]; col=0; }
       used[col]=0;
-      if(catForCont){
-        page[col].push({k:"cat", text:`${catForCont} (ciąg dalszy)`});
-        used[col]+=2;
-      }
+      if(catForCont){ page[col].push({k:"cat", text:`${catForCont} (ciąg dalszy)`}); used[col]+=2; }
     };
 
     const push = (k,text,catForCont)=>{
@@ -1294,8 +1621,8 @@ function renderExport(){
       <div class="page">
         <div class="hdr">
           <div>
-            <h1>${escapeHtml(out.title)}</h1>
-            <div class="meta">${escapeHtml("Data: " + out.date)}</div>
+            <h1>${escapeHtml(out.title || "Zamówienie")}</h1>
+            <div class="meta">${escapeHtml("Data: " + (out.date||"—"))}</div>
             <div class="meta">${escapeHtml(meta)}</div>
           </div>
           <div class="meta">HURTOWNIA • Strona ${i+1}/${pages.length}</div>
@@ -1307,17 +1634,55 @@ function renderExport(){
       </div>
     `).join("");
 
-    const html = `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(out.title)}</title>${style}</head><body>${pagesHtml}<script>window.onload=()=>{window.print();};</script></body></html>`;
+    return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(out.title || "Zamówienie")}</title>${style}</head><body>${pagesHtml}<script>window.onload=()=>{window.print();};</script></body></html>`;
+  }
 
+  function printExport(){
+    const out = buildExportText();
+    const orderId = LIVE.ready ? (LIVE.orderId || "") : "";
+    const orderName = LIVE.ready ? (LIVE.aliasName || "") : "";
+    const html = buildStdPrintHtml({ ...out, title: (orderName || out.title) });
+
+    // Zapisz do historii (żeby dało się wrócić do PDF)
+    const histId = "p" + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
     historyAdd({
-      id: "p" + Date.now().toString(36) + Math.random().toString(36).slice(2,6),
-      kind: "hurtownia",
-      title: out.title || "Zamówienie",
+      id: histId,
+      kind: "standard",
+      title: (orderName || out.title || "Zamówienie"),
       date: out.date || "—",
-      meta: meta || "",
+      meta: out.meta || "",
       createdAt: Date.now(),
-      html
+      html,
+      orderId,
+      orderName
     });
+
+    localOrdersSetLastPdf("standard", histId);
+
+    openPrintDoc(html, "PRINT_STD");
+  }
+
+
+  function printExportHurt(){
+    const out = buildExportText();
+    const orderId = LIVE.ready ? (LIVE.orderId || "") : "";
+    const orderName = LIVE.ready ? (LIVE.aliasName || "") : "";
+    const html = buildHurtPrintHtml({ ...out, title: (orderName || out.title) });
+
+    const histId = "p" + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+    historyAdd({
+      id: histId,
+      kind: "hurtownia",
+      title: (orderName || out.title || "Zamówienie"),
+      date: out.date || "—",
+      meta: out.meta || "",
+      createdAt: Date.now(),
+      html,
+      orderId,
+      orderName
+    });
+
+    localOrdersSetLastPdf("hurtownia", histId);
 
     openPrintDoc(html, "PRINT_HURT");
   }
@@ -1362,20 +1727,35 @@ $("btnBack").addEventListener("click", () => showPanel("panelOrder"));
     const btnPrintHurt = document.getElementById("btnPrintHurt");
     if(btnPrintHurt) btnPrintHurt.addEventListener("click", printExportHurt);
 
-    // Historia zamówień (PDF)
+    // Menedżer zamówień (LIVE + PDF)
     const btnOrders = document.getElementById("btnOrders");
-    if(btnOrders) btnOrders.addEventListener("click", ordersOpen);
+    if(btnOrders) btnOrders.addEventListener("click", () => ordersOpen("orders"));
     const oBack = document.getElementById("ordersBackdrop");
     if(oBack) oBack.addEventListener("click", ordersClose);
     const oClose = document.getElementById("btnOrdersClose");
     if(oClose) oClose.addEventListener("click", ordersClose);
     const oClear = document.getElementById("btnOrdersClearAll");
     if(oClear) oClear.addEventListener("click", ()=>{
-      if(!confirm("Usunąć CAŁĄ historię zapisanych PDF?")) return;
-      historyClearAll();
-      renderOrdersHistory();
-      toast("Usunięto historię");
+      if(ORDERS_UI.tab === "pdfs"){
+        if(!confirm("Usunąć CAŁĄ historię zapisanych PDF?")) return;
+        historyClearAll();
+        ordersRender();
+        toast("Usunięto historię");
+        return;
+      }
+      toast("Usuń pojedyncze zamówienia przyciskiem 🗑 (lista LIVE)");
     });
+
+    const tabO = document.getElementById("ordersTabOrders");
+    if(tabO) tabO.addEventListener("click", ()=>{ ORDERS_UI.tab = "orders"; ordersRender(); });
+    const tabP = document.getElementById("ordersTabPdfs");
+    if(tabP) tabP.addEventListener("click", ()=>{ ORDERS_UI.tab = "pdfs"; ordersRender(); });
+    const oSearch = document.getElementById("ordersSearch");
+    if(oSearch) oSearch.addEventListener("input", ()=>ordersRender());
+    const oStatus = document.getElementById("ordersStatus");
+    if(oStatus) oStatus.addEventListener("change", ()=>ordersRender());
+    const oSort = document.getElementById("ordersSort");
+    if(oSort) oSort.addEventListener("change", ()=>ordersRender());
 
     $("btnAddProduct").addEventListener("click", addProductFromForm);
     $("btnSeed").addEventListener("click", () => { ensureSeed(); renderAll(); toast("Wgrano przykładowe"); });

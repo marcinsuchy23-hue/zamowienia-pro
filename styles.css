@@ -345,3 +345,9 @@ body{ overscroll-behavior-y: none; }
 .order-item__sub{opacity:.85; font-size:12px;}
 .order-item__actions{display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end;}
 
+/* Orders manager */
+.status-badge{display:inline-flex;align-items:center;gap:6px;padding:2px 8px;border-radius:999px;border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.12);font-size:12px;line-height:18px;font-weight:900;white-space:nowrap;}
+.status-badge--open{background:rgba(77, 255, 143, 0.14);border-color:rgba(77, 255, 143, 0.28);}
+.status-badge--closed{background:rgba(255, 184, 77, 0.14);border-color:rgba(255, 184, 77, 0.28);}
+.order-item__sub .dot{opacity:.7;margin:0 6px;}
+
