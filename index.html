@@ -8,7 +8,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon-192.png">
   <!-- cache-bust for GitHub Pages / iOS Safari (updates show instantly) -->
-  <link rel="stylesheet" href="styles.css?v=20260106l" />
+  <link rel="stylesheet" href="styles.css?v=20260107a" />
 </head>
 <body>
   <header class="app-header">
@@ -132,6 +132,7 @@
 
         <div class="row row--gap row--end">
           <button class="btn" id="btnBack">← Wróć</button>
+          <button class="btn" id="btnOrders" title="Lista zapisanych PDF">📂 Zamówienia</button>
           <button class="btn" id="btnCopy">Kopiuj</button>
           <button class="btn" id="btnPrint">🖨 PDF Standard</button>
           <button class="btn primary" id="btnPrintHurt">🖨 PDF Hurtownia</button>
@@ -196,9 +197,27 @@
     </div>
   </div>
 
+  <!-- Manager zamówień (historia PDF + usuń) -->
+  <div class="modal hidden" id="ordersModal" aria-hidden="true">
+    <div class="modal__backdrop" id="ordersBackdrop"></div>
+    <div class="modal__panel" role="dialog" aria-modal="true" aria-labelledby="ordersTitle">
+      <div class="modal__head">
+        <div class="modal__title" id="ordersTitle">📂 Zamówienia</div>
+        <div class="row row--gap" style="justify-content:flex-end">
+          <button class="btn danger" id="btnOrdersClearAll" type="button" title="Usuń całą historię">🗑 Usuń wszystko</button>
+          <button class="btn" id="btnOrdersClose" type="button">Zamknij</button>
+        </div>
+      </div>
+      <div class="small" style="opacity:.85;margin:6px 0 10px">
+        Tu są zapisane wydruki PDF (Standard/Hurtownia). Kliknij PDF, żeby ponownie wydrukować. 🗑 usuwa wpis z listy.
+      </div>
+      <div id="ordersList" class="orders-list"></div>
+    </div>
+  </div>
+
   <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore-compat.js"></script>
-<script src="firebase-config.js?v=20260106l"></script>
-<script src="app.js?v=20260106l"></script>
+<script src="firebase-config.js?v=20260107a"></script>
+<script src="app.js?v=20260107a"></script>
 </body>
 </html>

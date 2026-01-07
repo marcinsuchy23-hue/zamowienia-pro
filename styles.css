@@ -330,3 +330,18 @@ textarea{
 html{ -webkit-text-size-adjust: 100%; }
 body{ overscroll-behavior-y: none; }
 
+/* --- Modal: manager zamówień (historia) --- */
+.modal{position:fixed; inset:0; z-index:9999; display:flex; align-items:center; justify-content:center;}
+.modal.hidden{display:none;}
+.modal__backdrop{position:absolute; inset:0; background:rgba(0,0,0,.55);}
+.modal__panel{position:relative; z-index:1; width:min(760px, 94vw); max-height:82vh; overflow:auto; background:#111; color:#fff; border-radius:18px; padding:14px; box-shadow: 0 14px 40px rgba(0,0,0,.6); border: 1px solid rgba(255,255,255,.10);}
+.modal__head{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:6px;}
+.modal__title{font-weight:900; letter-spacing:.3px;}
+
+.orders-list{display:flex; flex-direction:column; gap:10px;}
+.order-item{display:flex; align-items:flex-start; justify-content:space-between; gap:10px; padding:12px; border-radius:14px; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.08);}
+.order-item__meta{display:flex; flex-direction:column; gap:4px; min-width:0;}
+.order-item__title{font-weight:900; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.order-item__sub{opacity:.85; font-size:12px;}
+.order-item__actions{display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end;}
+

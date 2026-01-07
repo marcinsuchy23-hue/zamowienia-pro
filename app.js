@@ -989,8 +989,31 @@ function renderExport(){
       .replace(/'/g,"&#039;");
   }
 
+  // --- Historia PDF (lokalnie) ---
+  const HISTORY_KEY = "zamowienia_pro_history_v1";
 
-  // Drukuj HTML bez pop-upów (tablet/PWA często blokuje window.open)
+  function loadHistory(){
+    try{ return JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]") || []; }catch(e){ return []; }
+  }
+  function saveHistory(list){
+    try{ localStorage.setItem(HISTORY_KEY, JSON.stringify(list || [])); }catch(e){}
+  }
+  function historyAdd(entry){
+    const list = loadHistory();
+    list.unshift(entry);
+    // limit (żeby localStorage nie puchło)
+    if(list.length > 80) list.length = 80;
+    saveHistory(list);
+  }
+  function historyDelete(id){
+    const list = loadHistory().filter(x => x && x.id !== id);
+    saveHistory(list);
+  }
+  function historyClearAll(){
+    saveHistory([]);
+  }
+
+  // --- Drukowanie HTML: popup -> fallback iframe (tablet/PWA) ---
   function printHtmlViaIframe(html){
     const iframe = document.createElement("iframe");
     iframe.style.position = "fixed";
@@ -1001,19 +1024,82 @@ function renderExport(){
     iframe.style.border = "0";
     iframe.srcdoc = html;
     document.body.appendChild(iframe);
-
     iframe.onload = () => {
-      try{
-        iframe.contentWindow.focus();
-        iframe.contentWindow.print();
-      } catch(e){
-        alert("Błąd drukowania na tym urządzeniu.");
-      } finally {
-        setTimeout(() => iframe.remove(), 1500);
-      }
+      try{ iframe.contentWindow.focus(); iframe.contentWindow.print(); }
+      catch(e){ alert("Nie udało się uruchomić wydruku (iframe)."); }
+      finally{ setTimeout(()=>{ try{ iframe.remove(); }catch(e){} }, 1500); }
     };
   }
 
+  function openPrintDoc(html, winName){
+    let win = null;
+    try{ win = window.open("", winName || "PRINT", "width=900,height=700"); }catch(e){ win = null; }
+    if(!win){
+      printHtmlViaIframe(html);
+      return;
+    }
+    try{
+      win.document.open();
+      win.document.write(html);
+      win.document.close();
+    }catch(e){
+      // jeżeli coś poszło nie tak (np. Safari), spróbuj iframe
+      try{ win.close(); }catch(_e){}
+      printHtmlViaIframe(html);
+    }
+  }
+
+  // --- UI: manager zamówień (historia) ---
+  function ordersModalEl(id){ return document.getElementById(id); }
+  function ordersOpen(){
+    renderOrdersHistory();
+    const m = ordersModalEl("ordersModal");
+    if(m){ m.classList.remove("hidden"); m.setAttribute("aria-hidden","false"); }
+  }
+  function ordersClose(){
+    const m = ordersModalEl("ordersModal");
+    if(m){ m.classList.add("hidden"); m.setAttribute("aria-hidden","true"); }
+  }
+  function renderOrdersHistory(){
+    const box = ordersModalEl("ordersList");
+    if(!box) return;
+    const list = loadHistory();
+    if(!list.length){
+      box.innerHTML = '<div class="small" style="opacity:.85">Brak zapisanych PDF. Wydrukuj „PDF Standard” albo „PDF Hurtownia”, a pojawią się tutaj.</div>';
+      return;
+    }
+
+    box.innerHTML = list.map(x=>{
+      const kind = x.kind === "hurtownia" ? "Hurtownia" : "Standard";
+      const title = escapeHtml(x.title || "Zamówienie");
+      const date = escapeHtml(x.date || "—");
+      const meta = escapeHtml(x.meta || "");
+      const id = escapeAttr(x.id);
+      return `
+        <div class="order-item">
+          <div class="order-item__meta">
+            <div class="order-item__title">${title}</div>
+            <div class="order-item__sub">${date} • ${kind}${meta ? " • " + meta : ""}</div>
+          </div>
+          <div class="order-item__actions">
+            <button class="btn" type="button" onclick="window.__ordersPrint('${id}')">📄 PDF</button>
+            <button class="btn danger" type="button" onclick="window.__ordersDel('${id}')">🗑</button>
+          </div>
+        </div>`;
+    }).join("");
+  }
+
+  // expose minimal handlers (inline onclick)
+  window.__ordersPrint = (id)=>{
+    const e = loadHistory().find(x=>x && x.id === id);
+    if(!e || !e.html){ toast("Brak danych PDF"); return; }
+    openPrintDoc(e.html, "PRINT_FROM_HISTORY");
+  };
+  window.__ordersDel = (id)=>{
+    if(!confirm("Usunąć ten wpis z listy?")) return;
+    historyDelete(id);
+    renderOrdersHistory();
+  };
 
 
   function cssEscape(s){
@@ -1091,10 +1177,6 @@ function renderExport(){
 
   function printExport(){
     const out = buildExportText();
-    // Open a minimal print view.
-    const w = window.open("", "_blank");
-    if(!w){ alert("Przeglądarka zablokowała okno. Zezwól na wyskakujące okna."); return; }
-
     const html = `
 <!doctype html>
 <html lang="pl">
@@ -1125,9 +1207,19 @@ function renderExport(){
 <script>window.onload=()=>{ setTimeout(()=>window.print(), 150); };</script>
 </body>
 </html>`;
-    w.document.open();
-    w.document.write(html);
-    w.document.close();
+
+    // Zapisz do historii (żeby dało się wrócić do PDF)
+    historyAdd({
+      id: "p" + Date.now().toString(36) + Math.random().toString(36).slice(2,6),
+      kind: "standard",
+      title: out.title || "Zamówienie",
+      date: out.date || "—",
+      meta: out.meta || "",
+      createdAt: Date.now(),
+      html
+    });
+
+    openPrintDoc(html, "PRINT_STD");
   }
 
 
@@ -1176,8 +1268,6 @@ function renderExport(){
     }
     if(page[0].length || page[1].length) pages.push(page);
 
-    let win = null;
-
     const style = `
       <style>
         @page { size: A4; margin: 12mm; }
@@ -1205,6 +1295,7 @@ function renderExport(){
         <div class="hdr">
           <div>
             <h1>${escapeHtml(out.title)}</h1>
+            <div class="meta">${escapeHtml("Data: " + out.date)}</div>
             <div class="meta">${escapeHtml(meta)}</div>
           </div>
           <div class="meta">HURTOWNIA • Strona ${i+1}/${pages.length}</div>
@@ -1216,20 +1307,19 @@ function renderExport(){
       </div>
     `).join("");
 
-    const fullHtml = `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(out.title)}</title>${style}</head><body>${pagesHtml}<script>window.onload=()=>{ setTimeout(()=>window.print(), 100); };</script></body></html>`;
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(out.title)}</title>${style}</head><body>${pagesHtml}<script>window.onload=()=>{window.print();};</script></body></html>`;
 
-    // PC: spróbuj nowe okno. Tablet/PWA często blokuje window.open (popup) → fallback do iframe
-    try { win = window.open("", "PRINT_HURT", "width=900,height=700"); } catch(e){ win = null; }
+    historyAdd({
+      id: "p" + Date.now().toString(36) + Math.random().toString(36).slice(2,6),
+      kind: "hurtownia",
+      title: out.title || "Zamówienie",
+      date: out.date || "—",
+      meta: meta || "",
+      createdAt: Date.now(),
+      html
+    });
 
-    if(!win){
-      printHtmlViaIframe(fullHtml);
-      return;
-    }
-
-    win.document.open();
-    win.document.write(fullHtml);
-    win.document.close();
-
+    openPrintDoc(html, "PRINT_HURT");
   }
 
 
@@ -1271,6 +1361,21 @@ $("btnBack").addEventListener("click", () => showPanel("panelOrder"));
     $("btnPrint").addEventListener("click", printExport);
     const btnPrintHurt = document.getElementById("btnPrintHurt");
     if(btnPrintHurt) btnPrintHurt.addEventListener("click", printExportHurt);
+
+    // Historia zamówień (PDF)
+    const btnOrders = document.getElementById("btnOrders");
+    if(btnOrders) btnOrders.addEventListener("click", ordersOpen);
+    const oBack = document.getElementById("ordersBackdrop");
+    if(oBack) oBack.addEventListener("click", ordersClose);
+    const oClose = document.getElementById("btnOrdersClose");
+    if(oClose) oClose.addEventListener("click", ordersClose);
+    const oClear = document.getElementById("btnOrdersClearAll");
+    if(oClear) oClear.addEventListener("click", ()=>{
+      if(!confirm("Usunąć CAŁĄ historię zapisanych PDF?")) return;
+      historyClearAll();
+      renderOrdersHistory();
+      toast("Usunięto historię");
+    });
 
     $("btnAddProduct").addEventListener("click", addProductFromForm);
     $("btnSeed").addEventListener("click", () => { ensureSeed(); renderAll(); toast("Wgrano przykładowe"); });
