@@ -990,6 +990,32 @@ function renderExport(){
   }
 
 
+  // Drukuj HTML bez pop-upów (tablet/PWA często blokuje window.open)
+  function printHtmlViaIframe(html){
+    const iframe = document.createElement("iframe");
+    iframe.style.position = "fixed";
+    iframe.style.right = "0";
+    iframe.style.bottom = "0";
+    iframe.style.width = "0";
+    iframe.style.height = "0";
+    iframe.style.border = "0";
+    iframe.srcdoc = html;
+    document.body.appendChild(iframe);
+
+    iframe.onload = () => {
+      try{
+        iframe.contentWindow.focus();
+        iframe.contentWindow.print();
+      } catch(e){
+        alert("Błąd drukowania na tym urządzeniu.");
+      } finally {
+        setTimeout(() => iframe.remove(), 1500);
+      }
+    };
+  }
+
+
+
   function cssEscape(s){
     try{ return (window.CSS && CSS.escape) ? CSS.escape(String(s)) : String(s).replace(/[^a-zA-Z0-9_\-]/g, (c)=>'\\'+c); }
     catch(e){ return String(s).replace(/[^a-zA-Z0-9_\-]/g, (c)=>'\\'+c); }
@@ -1150,8 +1176,7 @@ function renderExport(){
     }
     if(page[0].length || page[1].length) pages.push(page);
 
-    const win = window.open("", "PRINT_HURT", "width=900,height=700");
-    if(!win) return alert("Przeglądarka zablokowała okno wydruku.");
+    let win = null;
 
     const style = `
       <style>
@@ -1180,7 +1205,6 @@ function renderExport(){
         <div class="hdr">
           <div>
             <h1>${escapeHtml(out.title)}</h1>
-            <div class="meta">${escapeHtml("Data: " + out.date)}</div>
             <div class="meta">${escapeHtml(meta)}</div>
           </div>
           <div class="meta">HURTOWNIA • Strona ${i+1}/${pages.length}</div>
@@ -1192,9 +1216,20 @@ function renderExport(){
       </div>
     `).join("");
 
+    const fullHtml = `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(out.title)}</title>${style}</head><body>${pagesHtml}<script>window.onload=()=>{ setTimeout(()=>window.print(), 100); };</script></body></html>`;
+
+    // PC: spróbuj nowe okno. Tablet/PWA często blokuje window.open (popup) → fallback do iframe
+    try { win = window.open("", "PRINT_HURT", "width=900,height=700"); } catch(e){ win = null; }
+
+    if(!win){
+      printHtmlViaIframe(fullHtml);
+      return;
+    }
+
     win.document.open();
-    win.document.write(`<!doctype html><html><head><title>${escapeHtml(out.title)}</title>${style}</head><body>${pagesHtml}<script>window.onload=()=>{window.print(); setTimeout(()=>window.close(), 300);};</script></body></html>`);
+    win.document.write(fullHtml);
     win.document.close();
+
   }
 
 
