@@ -1026,7 +1026,7 @@ function renderExport(){
     id = "o" + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
     localStorage.setItem(LOCAL_CURRENT_KEY, id);
     const list = localOrdersLoad();
-    list.unshift({ id, name: state.settings.userName ? ("Zamówienie – " + state.settings.userName) : "Zamówienie", status: "open", createdAt: Date.now(), updatedAt: Date.now(), lastPdfStd: "", lastPdfHurt: "" });
+    list.unshift({ id, name: state.settings.userName ? ("Zamówienie – " + state.settings.userName) : "Zamówienie", status: "open", createdAt: Date.now(), updatedAt: Date.now(), lastPdfHurt: "" });
     localOrdersSave(list);
   }
   function localOrdersTouch(){
@@ -1038,15 +1038,14 @@ function renderExport(){
     if(i>=0){ list[i].updatedAt = Date.now(); }
     localOrdersSave(list);
   }
-  function localOrdersSetLastPdf(kind, pdfId){
+  function localOrdersSetLastPdf(pdfId){
     if(LIVE.ready) return;
     localOrdersEnsureCurrent();
     const id = localStorage.getItem(LOCAL_CURRENT_KEY);
     const list = localOrdersLoad();
     const i = list.findIndex(x=>x && x.id === id);
     if(i>=0){
-      if(kind === "hurtownia") list[i].lastPdfHurt = pdfId;
-      else list[i].lastPdfStd = pdfId;
+      list[i].lastPdfHurt = pdfId;
       list[i].updatedAt = Date.now();
     }
     localOrdersSave(list);
@@ -1060,7 +1059,7 @@ function renderExport(){
     if(i>=0){ list[i].status = "closed"; list[i].updatedAt = Date.now(); }
     const id = "o" + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
     localStorage.setItem(LOCAL_CURRENT_KEY, id);
-    list.unshift({ id, name: state.settings.userName ? ("Zamówienie – " + state.settings.userName) : "Zamówienie", status: "open", createdAt: Date.now(), updatedAt: Date.now(), lastPdfStd: "", lastPdfHurt: "" });
+    list.unshift({ id, name: state.settings.userName ? ("Zamówienie – " + state.settings.userName) : "Zamówienie", status: "open", createdAt: Date.now(), updatedAt: Date.now(), lastPdfHurt: "" });
     localOrdersSave(list);
   }
 
@@ -1268,16 +1267,16 @@ function renderExport(){
     const box = ordersModalEl("ordersList");
     const help = ordersModalEl("ordersHelp");
     if(help){
-      help.textContent = "Tu są zapisane wydruki PDF (Standard/Hurtownia). Kliknij PDF, żeby ponownie wydrukować. 🗑 usuwa wpis z listy.";
+      help.textContent = "Tu są zapisane wydruki PDF. Kliknij PDF, żeby ponownie wydrukować. 🗑 usuwa wpis z listy.";
     }
     if(!box) return;
     const list = loadHistory();
     if(!list.length){
-      box.innerHTML = '<div class="small" style="opacity:.85">Brak zapisanych PDF. Wydrukuj „PDF Standard” albo „PDF Hurtownia”, a pojawią się tutaj.</div>';
+      box.innerHTML = '<div class="small" style="opacity:.85">Brak zapisanych PDF. Wydrukuj „PDF Hurtownia”, a pojawią się tutaj.</div>';
       return;
     }
     box.innerHTML = list.map(x=>{
-      const kind = x.kind === "hurtownia" ? "Hurtownia" : "Standard";
+      const kind = "Hurtownia";
       const title = escapeHtml(x.title || "Zamówienie");
       const date = escapeHtml(x.date || "—");
       const meta = escapeHtml(x.meta || "");
@@ -1296,9 +1295,8 @@ function renderExport(){
     }).join("");
   }
 
-  async function livePrintOrder(orderId, kind){
+  async function livePrintOrder(orderId){
     if(!LIVE.ready || !orderId){ toast("Brak danych zamówienia"); return; }
-    const kindNorm = (kind === "hurtownia") ? "hurtownia" : "standard";
     try{
       const odSnap = await liveOrderRef(orderId).get();
       const od = odSnap.data()||{};
@@ -1337,15 +1335,9 @@ function renderExport(){
 
       const out = { title: orderName, date: dateStr, meta, textBody, textFull: [meta, `Data: ${dateStr}`, "", textBody].join("\n").trim() };
 
-      if(kindNorm === "standard"){
-        const html = buildStdPrintHtml(out);
-        historyAdd({ id: "p" + Date.now().toString(36) + Math.random().toString(36).slice(2,6), kind: "standard", title: out.title, date: out.date, meta: out.meta, createdAt: Date.now(), html, orderId, orderName });
-        openPrintDoc(html, "PRINT_STD");
-      } else {
-        const html = buildHurtPrintHtml(out);
-        historyAdd({ id: "p" + Date.now().toString(36) + Math.random().toString(36).slice(2,6), kind: "hurtownia", title: out.title, date: out.date, meta: out.meta, createdAt: Date.now(), html, orderId, orderName });
-        openPrintDoc(html, "PRINT_HURT");
-      }
+      const html = buildHurtPrintHtml(out);
+      historyAdd({ id: "p" + Date.now().toString(36) + Math.random().toString(36).slice(2,6), kind: "hurtownia", title: out.title, date: out.date, meta: out.meta, createdAt: Date.now(), html, orderId, orderName });
+      openPrintDoc(html, "PRINT_HURT");
     }catch(e){
       console.error(e);
       toast("Nie udało się przygotować PDF");
@@ -1448,13 +1440,12 @@ function renderExport(){
           <div class="order-item">
             <div class="order-item__meta">
               <div class="order-item__title">${title}</div>
-              <div class="order-item__sub">${escapeHtml(dt)} <span class="dot">•</span> ${statusBadgeHtml(r.status)} <span class="dot">•</span> <span style="opacity:.85">${escapeHtml(r.orderId||"")}</span></div>
+              <div class="order-item__sub">${escapeHtml(dt)} <span class="dot">•</span> ${statusBadgeHtml(r.status)}</div>
             </div>
             <div class="order-item__actions">
               <button class="btn" type="button" onclick="window.__orderOpen('${escapeAttr(r.name||"")}')">Otwórz</button>
               ${closeBtn}
-              <button class="btn" type="button" onclick="window.__orderPdf('${oid}','standard')">📄 Std</button>
-              <button class="btn" type="button" onclick="window.__orderPdf('${oid}','hurtownia')">📄 Hurt</button>
+              <button class="btn" type="button" onclick="window.__orderPdf('${oid}','hurtownia')">📄 PDF</button>
               <button class="btn danger" type="button" onclick="window.__orderDel('${oid}','${aliasId}')">🗑</button>
             </div>
           </div>`;
@@ -1473,7 +1464,6 @@ function renderExport(){
       const title = escapeHtml(r.name || "Zamówienie");
       const dt = fmtDate(r.updatedAt || r.createdAt || 0);
       const id = escapeAttr(r.id || "");
-      const hasStd = !!r.lastPdfStd;
       const hasHurt = !!r.lastPdfHurt;
       const canClose = (r.status||"open") !== "closed";
       const closeBtn = canClose
@@ -1486,8 +1476,7 @@ function renderExport(){
             <div class="order-item__sub">${escapeHtml(dt)} <span class="dot">•</span> ${statusBadgeHtml(r.status)}</div>
           </div>
           <div class="order-item__actions">
-            <button class="btn" type="button" ${hasStd ? `onclick="window.__localPdf('${escapeAttr(r.lastPdfStd)}')"` : "disabled"}>📄 Std</button>
-            <button class="btn" type="button" ${hasHurt ? `onclick="window.__localPdf('${escapeAttr(r.lastPdfHurt)}')"` : "disabled"}>📄 Hurt</button>
+            <button class="btn" type="button" ${hasHurt ? `onclick="window.__localPdf('${escapeAttr(r.lastPdfHurt)}')"` : "disabled"}>📄 PDF</button>
             ${closeBtn}
             <button class="btn danger" type="button" onclick="window.__localOrderDel('${id}')">🗑</button>
           </div>
@@ -1506,7 +1495,7 @@ function renderExport(){
     historyDelete(id);
     ordersRender();
   };
-  window.__orderPdf = (orderId, kind)=>{ livePrintOrder(orderId, kind); };
+  window.__orderPdf = (orderId)=>{ livePrintOrder(orderId); };
   window.__orderDel = (orderId, aliasId)=>{
     liveDeleteOrderRow({ orderId, __aliasId: aliasId });
   };
@@ -1754,32 +1743,6 @@ function renderExport(){
     return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(out.title || "Zamówienie")}</title>${style}</head><body>${pagesHtml}<script>window.onload=()=>{window.print();};</script></body></html>`;
   }
 
-  function printExport(){
-    const out = buildExportText();
-    const orderId = LIVE.ready ? (LIVE.orderId || "") : "";
-    const orderName = LIVE.ready ? (LIVE.aliasName || "") : "";
-    const html = buildStdPrintHtml({ ...out, title: (orderName || out.title) });
-
-    // Zapisz do historii (żeby dało się wrócić do PDF)
-    const histId = "p" + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
-    historyAdd({
-      id: histId,
-      kind: "standard",
-      title: (orderName || out.title || "Zamówienie"),
-      date: out.date || "—",
-      meta: out.meta || "",
-      createdAt: Date.now(),
-      html,
-      orderId,
-      orderName
-    });
-
-    localOrdersSetLastPdf("standard", histId);
-
-    openPrintDoc(html, "PRINT_STD");
-  }
-
-
   function printExportHurt(){
     const out = buildExportText();
     const orderId = LIVE.ready ? (LIVE.orderId || "") : "";
@@ -1799,7 +1762,7 @@ function renderExport(){
       orderName
     });
 
-    localOrdersSetLastPdf("hurtownia", histId);
+    localOrdersSetLastPdf(histId);
 
     openPrintDoc(html, "PRINT_HURT");
   }
@@ -1840,7 +1803,6 @@ function renderExport(){
 $("btnBack").addEventListener("click", () => showPanel("panelOrder"));
 
     $("btnCopy").addEventListener("click", copyExport);
-    $("btnPrint").addEventListener("click", printExport);
     const btnPrintHurt = document.getElementById("btnPrintHurt");
     if(btnPrintHurt) btnPrintHurt.addEventListener("click", printExportHurt);
 
@@ -1877,9 +1839,13 @@ $("btnBack").addEventListener("click", () => showPanel("panelOrder"));
     $("btnAddProduct").addEventListener("click", addProductFromForm);
     $("btnSeed").addEventListener("click", () => { ensureSeed(); renderAll(); toast("Wgrano przykładowe"); });
 
-    // Baza produktów
-    const btnGoCatalog = document.getElementById("btnGoCatalog");
-    if(btnGoCatalog) btnGoCatalog.addEventListener("click", () => (location.hash = "catalog"));
+    // Zamówienia (szybki przycisk na górze)
+    const btnGoOrdersTop = document.getElementById("btnGoOrdersTop");
+    if(btnGoOrdersTop) btnGoOrdersTop.addEventListener("click", () => ordersOpen("orders"));
+
+    // Baza produktów (przeniesiona do koszyka)
+    const btnGoCatalogFromCart = document.getElementById("btnGoCatalogFromCart");
+    if(btnGoCatalogFromCart) btnGoCatalogFromCart.addEventListener("click", () => (location.hash = "catalog"));
 
     const btnBackFromCatalog = document.getElementById("btnBackFromCatalog");
     if(btnBackFromCatalog) btnBackFromCatalog.addEventListener("click", () => (location.hash = "order"));

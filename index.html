@@ -36,14 +36,14 @@
           </div>
         </div>
 
-        <!-- RZĄD 2: Ulubione + Odśwież + Baza + Export (max 1 linia na telefonie) -->
+        <!-- RZĄD 2: Ulubione + Odśwież + Zamówienia + Export (max 1 linia na telefonie) -->
         <div class="row row--gap order-row2" style="align-items:flex-end">
           <div class="order-actions order-actions--4">
             <button class="btn smallbtn favbtn" id="btnFav" type="button" title="Ulubione">⭐<span class="hide-mobile"> Ulubione</span></button>
             <button class="btn iconbtn" id="btnQuickRefresh" type="button" title="Odśwież bazę">
               <span class="icon">🔄</span><span class="hide-mobile"> Odśwież bazę</span>
             </button>
-            <button class="btn" id="btnGoCatalog" type="button">📚<span class="hide-mobile"> Baza</span></button>
+            <button class="btn" id="btnGoOrdersTop" type="button" title="Zamówienia">📂<span class="hide-mobile"> ZAM</span></button>
             <button class="btn primary" id="btnGoExport" type="button">📤<span class="hide-mobile"> Eksport</span></button>
             <button class="btn" id="btnCart" type="button">🧺<span class="hide-mobile"> Koszyk</span> <span class="badge" id="cartCount">0</span></button>
           </div>
@@ -132,9 +132,9 @@
 
         <div class="row row--gap row--end">
           <button class="btn" id="btnBack">← Wróć</button>
-          <button class="btn" id="btnOrders" title="Lista zapisanych PDF">📂 Zamówienia</button>
+          <button class="btn" id="btnGoCatalogFromCart" title="Baza produktów">📚 Baza</button>
+          <button class="btn" id="btnOrders" title="Lista zamówień">📂 Zamówienia</button>
           <button class="btn" id="btnCopy">Kopiuj</button>
-          <button class="btn" id="btnPrint">🖨 PDF Standard</button>
           <button class="btn primary" id="btnPrintHurt">🖨 PDF Hurtownia</button>
         </div>
 
@@ -204,7 +204,7 @@
       <div class="modal__head">
         <div class="modal__title" id="ordersTitle">📂 Zamówienia</div>
         <div class="row row--gap" style="justify-content:flex-end">
-          <button class="btn danger" id="btnOrdersClearAll" type="button" title="Usuń wpisy (zależnie od zakładki)">🗑 Usuń wszystko</button>
+          <button class="btn danger" id="btnOrdersClearAll" type="button" title="Usuń wszystko">🗑 Usuń</button>
           <button class="btn" id="btnOrdersClose" type="button">Zamknij</button>
         </div>
       </div>
