@@ -812,6 +812,13 @@ function ensureInputVisible(el){
             if(v === null) return;
             const nv = norm(v);
             if(!nv){ toast("Ilość nie może być pusta"); return; }
+
+            // LIVE sync: edycja ma być widoczna na innych urządzeniach
+            if(it.__live && liveCanWrite()){
+              liveSetItemQty(it, nv).catch(e=>{ console.error(e); toast("Błąd LIVE zapisu"); });
+              return;
+            }
+
             it.qty = nv;
             save();
             renderAll();
@@ -819,12 +826,23 @@ function ensureInputVisible(el){
 
           del.addEventListener("click", () => {
             if(!confirm(`Usunąć: ${it.name}?`)) return;
-            state.order.items = state.order.items.filter(x => !(x.name===it.name && x.category===it.category && x.by===it.by && x.qty===it.qty));
+
+            // LIVE sync: usuń z bazy, żeby zniknęło na wszystkich urządzeniach
+            if(it.__live && liveCanWrite()){
+              liveDeleteItem(it).catch(e=>{ console.error(e); toast("Błąd LIVE usuwania"); });
+              return;
+            }
+
+            // lokalnie
+            if(it.id){
+              state.order.items = state.order.items.filter(x => x && x.id !== it.id);
+            }else{
+              state.order.items = state.order.items.filter(x => !(x.name===it.name && x.category===it.category && x.by===it.by && x.qty===it.qty));
+            }
             save();
             renderAll();
           });
-
-          g.appendChild(r);
+g.appendChild(r);
         }
         box.appendChild(g);
       }
@@ -1814,7 +1832,8 @@ $("btnBack").addEventListener("click", () => showPanel("panelOrder"));
     const oClose = document.getElementById("btnOrdersClose");
     if(oClose) oClose.addEventListener("click", ordersClose);
     const oClear = document.getElementById("btnOrdersClearAll");
-    if(oClear) oClear.addEventListener("click", ()=>{
+    if(oClear) oClear.addEventListener("click", async ()=>{
+      // PDF history tab
       if(ORDERS_UI.tab === "pdfs"){
         if(!confirm("Usunąć CAŁĄ historię zapisanych PDF?")) return;
         historyClearAll();
@@ -1822,7 +1841,58 @@ $("btnBack").addEventListener("click", () => showPanel("panelOrder"));
         toast("Usunięto historię");
         return;
       }
-      toast("Usuń pojedyncze zamówienia przyciskiem 🗑 (lista LIVE)");
+
+      // Orders tab
+      if(LIVE.ready){
+        const rows = (__liveOrdersCache && __liveOrdersCache.length) ? __liveOrdersCache : await liveFetchOrdersList();
+        let arr = filterRows(rows);
+        sortRows(arr);
+        if(!arr.length){ toast("Brak zamówień do usunięcia"); return; }
+
+        const howMany = arr.length;
+        if(!confirm(`Usunąć ${howMany} zamówień z listy?
+To skasuje też ich pozycje w bazie.`)) return;
+
+        const deleteOne = async (row)=>{
+          // delete items in chunks
+          const itemsRef = liveOrderRef(row.orderId).collection("items");
+          const snap = await itemsRef.get();
+          const docs = snap.docs || [];
+          for(let i=0;i<docs.length;i+=400){
+            const batch = LIVE.db.batch();
+            for(const d of docs.slice(i,i+400)) batch.delete(d.ref);
+            await batch.commit();
+          }
+          await liveOrderRef(row.orderId).delete();
+          if(row.__aliasId) await LIVE.db.collection("orderAliases").doc(row.__aliasId).delete();
+
+          if(LIVE.orderId === row.orderId){
+            LIVE.orderId = "";
+            localStorage.removeItem(LS_ORDER);
+            localStorage.removeItem("LIVE_ALIAS");
+            $("hdrSub").textContent = "—";
+          }
+        };
+
+        try{
+          for(const row of arr){
+            if(!row || !row.orderId) continue;
+            await deleteOne(row);
+          }
+          toast("Usunięto zamówienia");
+          await ordersRender();
+        }catch(e){
+          console.error(e);
+          toast("Nie udało się usunąć wszystkich");
+        }
+        return;
+      }
+
+      // OFFLINE: wyczyść lokalną listę zamówień
+      if(!confirm("Usunąć wszystkie zapisane zamówienia z listy lokalnej?")) return;
+      localOrdersSave([]);
+      ordersRender();
+      toast("Usunięto");
     });
 
     const tabO = document.getElementById("ordersTabOrders");
