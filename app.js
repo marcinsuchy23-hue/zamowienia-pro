@@ -224,17 +224,42 @@ function ensureInputVisible(el){
   }
 
   async function liveJoinOrder(code){
-    // w trybie nazw: "code" traktujemy jako nazwę (pole orderCode)
-    const rawName = code || (liveEl("orderCode") ? liveEl("orderCode").value : "");
-    const name = norm(rawName);
-    if(!name){ toast("Wpisz nazwę zamówienia"); return false; }
+    // W trybie LIVE wspólnym: pole "Kod zamówienia" może być:
+    // 1) nazwą/aliasem (np. "test3") -> mapujemy przez orderAliases
+    // 2) bezpośrednim kodem/orderId (np. "META-AB12" albo "555") -> podpinamy wprost do /orders/{id}
+    const raw = code || (liveEl("orderCode") ? liveEl("orderCode").value : "");
+    const key = norm(raw);
+    if(!key){ toast("Wpisz nazwę / kod zamówienia"); return false; }
 
-    const orderId = await liveResolveAlias(name);
-    if(!orderId){ toast("Nie ma otwartego zamówienia: " + name); return false; }
+    // 1) spróbuj alias
+    let orderId = await liveResolveAlias(key);
 
-    LIVE.aliasName = name;
+    // 2) jeśli nie ma aliasu, spróbuj bezpośrednio jako /orders/{id}
+    if(!orderId){
+      try{
+        const osnap = await LIVE.db.collection("orders").doc(key).get();
+        if(osnap.exists){
+          const od = osnap.data()||{};
+          const st = ordersNormalizeStatus(od.status || od.state || "open");
+          // Jeśli ktoś jednak oznaczył zamknięte, nie dołączamy
+          if(st === "closed"){ toast("Zamówienie jest zamknięte: " + key); return false; }
+          orderId = key;
+          LIVE.aliasName = ""; // brak aliasu
+        }
+      }catch(e){
+        // ignore
+      }
+    }
+
+    if(!orderId){ toast("Nie ma otwartego zamówienia: " + key); return false; }
+
+    if(orderId && orderId !== key){
+      // mamy alias -> zapamiętaj nazwę (ładniejsze wyświetlanie)
+      LIVE.aliasName = key;
+    }
+
     await liveUseOrder(orderId);
-    toast("Dołączono: " + name);
+    toast("Dołączono: " + (LIVE.aliasName || orderId));
     return true;
   }
 
