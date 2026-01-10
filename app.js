@@ -27,7 +27,10 @@ function ensureInputVisible(el){
     // iOS/Chrome sometimes doesn't scroll focused inputs into view, especially near the bottom.
     const header = document.querySelector('.app-header');
     const headerH = header ? header.getBoundingClientRect().height : 0;
-    const topPad = Math.round(headerH + 9);   // safe space under the locked header
+    // There is also a sticky filter/action card (order-card) that can cover inputs on small screens.
+    const sticky = document.querySelector('.order-card');
+    const stickyH = (sticky && getComputedStyle(sticky).position === 'sticky') ? sticky.getBoundingClientRect().height : 0;
+    const topPad = Math.round(headerH + stickyH + 12);   // safe space under the locked header
     const bottomPad = 22; // space above keyboard / bottom UI
     let viewH = (vv && vv.height) ? vv.height : window.innerHeight;
 
@@ -248,6 +251,12 @@ function ensureInputVisible(el){
   async function liveCloseOrder(){
     await liveOrderRef(LIVE.orderId).set({ status:"closed", closedAt: firebase.firestore.FieldValue.serverTimestamp(), closedBy: norm(state.settings.userName)||"" }, {merge:true});
     if(LIVE.aliasName) try{ await liveCloseAlias(LIVE.aliasName); }catch(e){ console.warn(e); }
+
+    // After closing, clear local basket UI (so you can start fresh)
+    state.order.items = [];
+    save();
+    renderAll();
+    toast("Zamówienie zamknięte — koszyk wyczyszczony");
 
   }
 
@@ -573,7 +582,6 @@ function ensureInputVisible(el){
 	      row.innerHTML = `
         <div class="item__left">
           <div class="item__name">${escapeHtml(p.name)}</div>
-	          <div class="item__meta">${escapeHtml(meta)}</div>
         </div>
         <div class="item__right">
           <input class="qty" inputmode="text" placeholder="np. 2kg" />
