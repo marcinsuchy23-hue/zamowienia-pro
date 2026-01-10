@@ -312,7 +312,7 @@ function ensureInputVisible(el){
   let lastActionFocus = false;
 
   const state = {
-    settings: { userName: "", restaurant: "Zamówienia PRO", sections: DEFAULT_SECTIONS.slice() },
+    settings: { userName: "", restaurant: "Zamówienia PRO", sections: DEFAULT_SECTIONS.slice(), uiScale: 1 },
     ui: { filterSection: "", filterCategory: "", search: "", favMode: false, topMode: false, onlyInCart: false },
     catalog: [], // {id, name, category, sections[], createdAt}
     order: { items: [] },
@@ -339,9 +339,17 @@ function ensureInputVisible(el){
     // Ensure shapes
     state.settings ||= { userName:"", restaurant:"Zamówienia PRO", sections: DEFAULT_SECTIONS.slice() };
     state.settings.sections ||= DEFAULT_SECTIONS.slice();
+    if(!state.settings.uiScale) state.settings.uiScale = 1;
     state.catalog ||= [];
     state.order ||= { items: [] };
     state.order.items ||= [];
+  }
+
+  function applyUiScale(val){
+    let v = Number(val);
+    if(!isFinite(v)) v = 1;
+    v = Math.max(0.85, Math.min(1, v));
+    document.documentElement.style.setProperty('--uiScale', String(v));
   }
 
   function save() {
@@ -1003,6 +1011,8 @@ function renderExport(){
     $("sheet").classList.remove("hidden");
     $("userName").value = state.settings.userName || "";
     $("restName").value = state.settings.restaurant || "Zamówienia PRO";
+    const sc = document.getElementById("uiScale");
+    if(sc) sc.value = String(state.settings.uiScale || 1);
   }
   function closeSheet(){ $("sheet").classList.add("hidden"); }
 
@@ -1815,6 +1825,9 @@ function renderExport(){
     $("btnSaveSettings").addEventListener("click", () => {
       state.settings.userName = capFirst($("userName").value);
       state.settings.restaurant = norm($("restName").value) || "Zamówienia PRO";
+      const sc = document.getElementById("uiScale");
+      if(sc) state.settings.uiScale = Number(sc.value) || 1;
+      applyUiScale(state.settings.uiScale);
       save();
       closeSheet();
       renderAll();
@@ -2087,6 +2100,7 @@ To skasuje też ich pozycje w bazie.`)) return;
 
   function boot(){
     load();
+    applyUiScale(state.settings.uiScale);
     ensureSeed(); // comment this out if you don't want starter catalog
     renderAll();
     wire();

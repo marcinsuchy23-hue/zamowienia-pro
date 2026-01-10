@@ -8,9 +8,10 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon-192.png">
   <!-- cache-bust for GitHub Pages / iOS Safari (updates show instantly) -->
-  <link rel="stylesheet" href="styles.css?v=20260110a" />
+  <link rel="stylesheet" href="styles.css?v=20260110b" />
 </head>
 <body>
+  <div id="uiRoot">
   <header class="app-header">
     <div class="brand">
       <div class="brand__title">Zamówienia PRO</div>
@@ -187,6 +188,17 @@
         <input id="restName" placeholder="np. Bistro X" autocomplete="off" />
       </div>
 
+      <div class="field">
+        <label>Skala aplikacji</label>
+        <select id="uiScale">
+          <option value="1">100% (domyślnie)</option>
+          <option value="0.95">95% (kompakt)</option>
+          <option value="0.9">90% (mały ekran)</option>
+          <option value="0.85">85% (bardzo mały)</option>
+        </select>
+        <div class="small">Zmienia wielkość całej aplikacji na tym urządzeniu. Jeśli coś wygląda źle, wróć na 100%.</div>
+      </div>
+
       <div class="row row--gap row--end">
         <button class="btn" id="btnCloseSheet">Zamknij</button>
         <button class="btn primary" id="btnSaveSettings">Zapisz</button>
@@ -232,9 +244,11 @@
     </div>
   </div>
 
+  </div><!-- /#uiRoot -->
+
   <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore-compat.js"></script>
 <script src="firebase-config.js?v=20260108a"></script>
-<script src="app.js?v=20260110a"></script>
+<script src="app.js?v=20260110b"></script>
 </body>
 </html>
