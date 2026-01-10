@@ -101,7 +101,11 @@ function ensureInputVisible(el){
     const sel = liveEl("userSelect");
     const selOpen = liveEl("openOrdersSelect");
     if(inp){ inp.value = LIVE.orderId || ""; }
-    if(selOpen){ renderOpenOrdersSelect(); }
+    if(selOpen){
+      // Fill placeholder immediately and start LIVE listener so the dropdown works in Settings
+      renderOpenOrdersSelect();
+      try{ ordersStartLiveListener(); }catch(e){ /* ignore */ }
+    }
     if(btnC) btnC.addEventListener("click", async()=>{ if(!LIVE.ready){ toast("LIVE nie jest gotowe"); return; }
       const code = await liveCreateOrder();
       if(inp) inp.value = code;
@@ -1200,6 +1204,22 @@ function renderExport(){
   let __liveOrdersCache = null; // [{name, status, orderId, updatedAt, createdAt, __aliasId}]
   let __ordersUnsub = null;
 
+  // Accept a few variants so "otwarte/zamknięte" from UI or older docs still works.
+  function ordersNormalizeStatus(st){
+    const s = String(st ?? "open").trim().toLowerCase();
+    if(!s) return "open";
+    if(s === "closed" || s === "close" || s === "zamkniete" || s === "zamknięte" || s === "zamkniety" || s === "zamknięty" || s.includes("zamkn")) return "closed";
+    if(s === "open" || s === "otwarte" || s === "otwarty" || s.includes("otwar")) return "open";
+    // boolean-ish
+    if(s === "false" || s === "0") return "open";
+    if(s === "true" || s === "1") return "open";
+    return (s.includes("clos") ? "closed" : "open");
+  }
+
+  function ordersIsOpenStatus(st){
+    return ordersNormalizeStatus(st) === "open";
+  }
+
   function ordersIsOpen(){
     const m = ordersModalEl("ordersModal");
     return !!(m && !m.classList.contains("hidden"));
@@ -1215,10 +1235,11 @@ function renderExport(){
           snap.forEach(doc=>{
             const d = doc.data()||{};
             const name = norm(d.name || d.displayName || d.title || "") || (d.orderId || doc.id);
-            const status = (d.status||"open");
+            const status = ordersNormalizeStatus(d.status||"open");
             const updatedAt = d.updatedAt && d.updatedAt.toMillis ? d.updatedAt.toMillis() : (d.updatedAt || 0);
             const createdAt = d.createdAt && d.createdAt.toMillis ? d.createdAt.toMillis() : (d.createdAt || 0);
-            const orderId = d.orderId || "";
+            // Some installations store order code as doc.id (no orderId field) — support both.
+            const orderId = d.orderId || doc.id || "";
             rows.push({ name, status, orderId, updatedAt, createdAt, __aliasId: doc.id });
           });
           __liveOrdersCache = rows;
@@ -1248,7 +1269,7 @@ function renderExport(){
 
     const rows = Array.isArray(__liveOrdersCache) ? __liveOrdersCache : [];
     const open = rows
-      .filter(r => (r && (r.status || "open") === "open" && r.orderId))
+      .filter(r => (r && ordersIsOpenStatus(r.status) && r.orderId))
       .sort((a,b) => (b.updatedAt||b.createdAt||0) - (a.updatedAt||a.createdAt||0));
 
     const cur = sel.value || "";
