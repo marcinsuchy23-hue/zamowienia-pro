@@ -581,6 +581,18 @@ function ensureInputVisible(el){
           <button class="smallbtn">➕</button>
         </div>
       `;
+
+      // --- PRO: lepsza czytelność nazw na małych ekranach ---
+      // Dodajemy klasy "długi/mega długi" żeby automatycznie zmniejszyć font tylko tam,
+      // gdzie nazwa robi się nieczytelna na małych ekranach.
+      const nameEl = row.querySelector('.item__name');
+      if(nameEl){
+        const nm = norm(p.name);
+        if(nm.length >= 26) nameEl.classList.add('name--long');
+        if(nm.length >= 38) nameEl.classList.add('name--xlong');
+        // Bonus: pełna nazwa po przytrzymaniu (desktop) / w podglądzie
+        try{ nameEl.setAttribute('title', nm); }catch(e){}
+      }
       const qtyEl = row.querySelector("input.qty");
       if(qtyEl){
         qtyEl.addEventListener("focus", ()=>{
@@ -623,28 +635,29 @@ function ensureInputVisible(el){
       if(btn){
         // Prevent button from stealing focus (iOS hides the input behind keyboard/header after tap)
         try{ btn.setAttribute("tabindex","-1"); }catch(e){}
-        btn.addEventListener("pointerdown", (ev)=>{ ev.preventDefault(); });
-        btn.addEventListener("touchstart", (ev)=>{ ev.preventDefault(); }, {passive:false});
+        // Nie robimy preventDefault() — na iOS potrafi to skasować "click" i wtedy ➕ nie działa.
+        btn.addEventListener("pointerdown", (ev)=>{ ev.stopPropagation(); });
+        btn.addEventListener("touchstart", (ev)=>{ ev.stopPropagation(); }, {passive:true});
+
+        btn.addEventListener("click", (ev) => {
+          ev.preventDefault();
+          const qty = norm(qtyEl.value);
+          if(!qty){ toast("Wpisz ilość"); return; }
+          lastActionKey = key;
+          lastActionFocus = true;
+          rememberScroll();
+          addToOrder(p, qty);
+          row.classList.add("item--flash");
+          setTimeout(()=>row.classList.remove("item--flash"), 650);
+          // Keep keyboard open and keep editing context visible
+          qtyEl.value = "";
+          setTimeout(()=>{
+            try{ qtyEl.focus({ preventScroll:true }); }catch(e){ try{ qtyEl.focus(); }catch(e2){} }
+            ensureInputVisible(qtyEl);
+          }, 30);
+          setTimeout(()=>ensureInputVisible(qtyEl), 160);
+        });
       }
-
-
-      btn.addEventListener("click", () => {
-        const qty = norm(qtyEl.value);
-        if(!qty){ toast("Wpisz ilość"); return; }
-        lastActionKey = key;
-        lastActionFocus = true;
-        rememberScroll();
-        addToOrder(p, qty);
-        row.classList.add("item--flash");
-        setTimeout(()=>row.classList.remove("item--flash"), 650);
-        // Keep keyboard open and keep editing context visible
-        qtyEl.value = "";
-        setTimeout(()=>{
-          try{ qtyEl.focus({ preventScroll:true }); }catch(e){ try{ qtyEl.focus(); }catch(e2){} }
-          ensureInputVisible(qtyEl);
-        }, 30);
-        setTimeout(()=>ensureInputVisible(qtyEl), 160);
-      });
 
       qtyEl.addEventListener("keydown", (ev) => {
         if(ev.key === "Enter"){
