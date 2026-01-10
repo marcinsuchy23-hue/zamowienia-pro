@@ -8,7 +8,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon-192.png">
   <!-- cache-bust for GitHub Pages / iOS Safari (updates show instantly) -->
-  <link rel="stylesheet" href="styles.css?v=20260110c" />
+  <link rel="stylesheet" href="styles.css?v=20260110d" />
 </head>
 <body>
   <div id="uiRoot">
@@ -163,6 +163,10 @@
         <div class="field">
           <label>Kod zamówienia (dołącz / podejrzyj)</label>
           <input id="orderCode" placeholder="np. META-7F3A" autocomplete="off" />
+          <select id="openOrdersSelect" style="margin-top:8px" aria-label="Otwórz istniejące zamówienie">
+            <option value="">— wybierz otwarte zamówienie —</option>
+          </select>
+          <div class="small">Możesz wybrać z listy, żeby szybko dołączyć bez wpisywania kodu.</div>
           <div class="small">Po „Utwórz nowe” dostaniesz kod. Na drugim telefonie wpisz ten sam kod i kliknij „Dołącz”.</div>
         </div>
 
@@ -252,6 +256,6 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore-compat.js"></script>
 <script src="firebase-config.js?v=20260108a"></script>
-<script src="app.js?v=20260110c"></script>
+<script src="app.js?v=20260110d"></script>
 </body>
 </html>

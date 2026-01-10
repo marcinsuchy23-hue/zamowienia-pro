@@ -99,7 +99,9 @@ function ensureInputVisible(el){
     const btnJ = liveEl("btnJoinOrder");
     const btnX = liveEl("btnCloseOrder");
     const sel = liveEl("userSelect");
+    const selOpen = liveEl("openOrdersSelect");
     if(inp){ inp.value = LIVE.orderId || ""; }
+    if(selOpen){ renderOpenOrdersSelect(); }
     if(btnC) btnC.addEventListener("click", async()=>{ if(!LIVE.ready){ toast("LIVE nie jest gotowe"); return; }
       const code = await liveCreateOrder();
       if(inp) inp.value = code;
@@ -111,6 +113,16 @@ function ensureInputVisible(el){
       const ok = await liveJoinOrder(code);
       if(ok){ toast("Dołączono: " + code); }
     });
+    if(selOpen) selOpen.addEventListener("change", async()=>{
+      if(!LIVE.ready){ toast("LIVE nie jest gotowe"); return; }
+      const code = norm(selOpen.value || "");
+      if(!code) return;
+      if(inp) inp.value = code;
+      const ok = await liveJoinOrder(code);
+      if(ok){ toast("Dołączono: " + code); }
+      else { toast("Nie udało się dołączyć"); }
+    });
+
     if(btnX) btnX.addEventListener("click", async()=>{ if(!liveCanWrite()){ toast("Brak aktywnego zamówienia"); return; }
       if(!confirm("Zamknąć zamówienie? Po zamknięciu nie da się dodawać.")) return;
       await liveCloseOrder();
@@ -124,6 +136,7 @@ function ensureInputVisible(el){
 
   function liveLoadPeople(){
     const sel = liveEl("userSelect");
+    const selOpen = liveEl("openOrdersSelect");
     if(!LIVE.ready || !sel) return;
     LIVE.db.collection("people").where("active","==",true).orderBy("order").get().then((snap)=>{
       const opts = ['<option value="">— (wpiszę ręcznie)</option>'];
@@ -1020,6 +1033,10 @@ function renderExport(){
     $("restName").value = state.settings.restaurant || "Zamówienia PRO";
     const sc = document.getElementById("uiScale");
     if(sc) sc.value = String(state.settings.uiScale || 1);
+
+    // Ensure LIVE orders cache is running so dropdown can show open orders
+    ordersStartLiveListener();
+    renderOpenOrdersSelect();
   }
   function closeSheet(){ $("sheet").classList.add("hidden"); }
 
@@ -1205,6 +1222,7 @@ function renderExport(){
             rows.push({ name, status, orderId, updatedAt, createdAt, __aliasId: doc.id });
           });
           __liveOrdersCache = rows;
+          renderOpenOrdersSelect();
           if(ordersIsOpen() && ORDERS_UI.tab === "orders"){
             ordersRender();
           }
@@ -1213,6 +1231,46 @@ function renderExport(){
       console.warn(e);
     }
   }
+
+  function renderOpenOrdersSelect(){
+    const sel = document.getElementById("openOrdersSelect");
+    if(!sel) return;
+
+    // Only show when settings sheet is visible
+    const sheet = document.getElementById("sheet");
+    if(sheet && sheet.classList.contains("hidden")){
+      // Keep placeholder
+      if(sel.options.length === 0){
+        sel.innerHTML = '<option value="">— wybierz otwarte zamówienie —</option>';
+      }
+      return;
+    }
+
+    const rows = Array.isArray(__liveOrdersCache) ? __liveOrdersCache : [];
+    const open = rows
+      .filter(r => (r && (r.status || "open") === "open" && r.orderId))
+      .sort((a,b) => (b.updatedAt||b.createdAt||0) - (a.updatedAt||a.createdAt||0));
+
+    const cur = sel.value || "";
+    const opts = ['<option value="">— wybierz otwarte zamówienie —</option>'];
+
+    const seen = new Set();
+    for(const r of open){
+      if(seen.has(r.orderId)) continue;
+      seen.add(r.orderId);
+
+      const when = fmtDate(r.updatedAt || r.createdAt || 0);
+      const label = (norm(r.name) || r.orderId).slice(0, 60);
+      opts.push('<option value="' + escapeAttr(r.orderId) + '">' + escapeHtml(label) + ' — ' + escapeHtml(when) + '</option>');
+    }
+
+    sel.innerHTML = opts.join("");
+    // restore selected if still present
+    if(cur){
+      sel.value = cur;
+    }
+  }
+
 
   function ordersStopLiveListener(){
     if(__ordersUnsub){
