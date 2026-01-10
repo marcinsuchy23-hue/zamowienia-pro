@@ -608,6 +608,13 @@ function ensureInputVisible(el){
         if(nm.length >= 38) nameEl.classList.add('name--xlong');
         // Bonus: pełna nazwa po przytrzymaniu (desktop) / w podglądzie
         try{ nameEl.setAttribute('title', nm); }catch(e){}
+
+        // Tap na nazwę: rozwiń/zwiń pełną nazwę (przydatne na bardzo małych ekranach)
+        nameEl.addEventListener('click', (ev)=>{
+          // Nie przeszkadzaj w edycji ilości
+          if(document.activeElement && document.activeElement.classList && document.activeElement.classList.contains('qty')) return;
+          row.classList.toggle('is-expanded');
+        });
       }
       const qtyEl = row.querySelector("input.qty");
       if(qtyEl){

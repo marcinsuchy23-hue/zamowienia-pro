@@ -163,6 +163,18 @@ textarea{
   line-height:1.15;
   max-height:2.3em;
 }
+/* Bardzo małe telefony: pozwól na 3 linie nazwy (np. "Ananas (krojony, ...)") */
+@media (max-width: 380px){
+  .item__name{
+    -webkit-line-clamp:3;
+    max-height:3.45em;
+  }
+}
+/* Tap na nazwę → pokaż całą nazwę (bez ucinania) */
+.item.is-expanded .item__name{
+  -webkit-line-clamp: 10;
+  max-height: none;
+}
 /* PRO: jeśli nazwa jest bardzo długa, zmniejsz font tylko dla tej pozycji */
 .item__name.name--long{ font-size: clamp(13px, 3.6vw, 16px); }
 .item__name.name--xlong{ font-size: clamp(12px, 3.2vw, 15px); }
@@ -212,7 +224,9 @@ textarea{
 .sheet{position:fixed; inset:0; z-index:50; display:block}
 .sheet__backdrop{position:absolute; inset:0; background:rgba(0,0,0,.55)}
 .sheet__panel{
-  position:absolute; left:50%; transform:translateX(-50%);
+  position:absolute; left:50%;
+  transform:translateX(-50%) scale(var(--uiScale));
+  transform-origin: bottom center;
   bottom:0;
   width:min(720px, 96vw);
   border-top-left-radius:22px;
@@ -222,6 +236,8 @@ textarea{
   box-shadow: var(--shadow);
   padding:16px;
 }
+/* Skala UI także dla menu (ale bez psucia position:fixed) */
+.sheet__panel{ transform: translateX(-50%) scale(var(--uiScale)); transform-origin: bottom center; }
 .sheet__title{font-weight:1000; font-size:16px; margin-bottom:10px}
 
 .export-top{display:flex; justify-content:space-between; align-items:flex-end; gap:10px; margin-bottom:10px}
@@ -356,7 +372,10 @@ body{ overscroll-behavior-y: none; }
 .modal{position:fixed; inset:0; z-index:9999; display:flex; align-items:center; justify-content:center;}
 .modal.hidden{display:none;}
 .modal__backdrop{position:absolute; inset:0; background:rgba(0,0,0,.55);}
-.modal__panel{position:relative; z-index:1; width:min(760px, 94vw); max-height:82vh; overflow:auto; background:#111; color:#fff; border-radius:18px; padding:14px; box-shadow: 0 14px 40px rgba(0,0,0,.6); border: 1px solid rgba(255,255,255,.10);}
+.modal__panel{position:relative; z-index:1; width:min(760px, 94vw); max-height:82vh; overflow:auto; background:#111; color:#fff; border-radius:18px; padding:14px; box-shadow: 0 14px 40px rgba(0,0,0,.6); border: 1px solid rgba(255,255,255,.10);
+  transform: scale(var(--uiScale));
+  transform-origin: top center;
+}
 .modal__head{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:6px;}
 .modal__title{font-weight:900; letter-spacing:.3px;}
 

@@ -8,7 +8,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon-192.png">
   <!-- cache-bust for GitHub Pages / iOS Safari (updates show instantly) -->
-  <link rel="stylesheet" href="styles.css?v=20260110b" />
+  <link rel="stylesheet" href="styles.css?v=20260110c" />
 </head>
 <body>
   <div id="uiRoot">
@@ -146,6 +146,11 @@
     </section>
   </main>
 
+  </div><!-- /#uiRoot -->
+
+  <!-- UWAGA: modale/overlaye MUSZĄ być poza #uiRoot, bo #uiRoot jest skalowany transformem.
+       Inaczej position:fixed zachowuje się jak absolute i okno menu ląduje na dole listy. -->
+
   <div class="sheet hidden" id="sheet">
     <div class="sheet__backdrop" id="sheetBackdrop"></div>
     <div class="sheet__panel">
@@ -244,11 +249,9 @@
     </div>
   </div>
 
-  </div><!-- /#uiRoot -->
-
   <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore-compat.js"></script>
 <script src="firebase-config.js?v=20260108a"></script>
-<script src="app.js?v=20260110b"></script>
+<script src="app.js?v=20260110c"></script>
 </body>
 </html>
