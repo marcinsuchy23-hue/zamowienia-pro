@@ -1198,9 +1198,18 @@ function renderExport(){
     iframe.srcdoc = html;
     document.body.appendChild(iframe);
     iframe.onload = () => {
-      try{ iframe.contentWindow.focus(); iframe.contentWindow.print(); }
-      catch(e){ alert("Nie udało się uruchomić wydruku (iframe)."); }
-      finally{ setTimeout(()=>{ try{ iframe.remove(); }catch(e){} }, 1500); }
+      const w = iframe.contentWindow;
+      const doPrint = () => {
+        try{ w.focus(); w.print(); }
+        catch(e){ alert("Nie udało się uruchomić wydruku (iframe)."); }
+        finally{ setTimeout(()=>{ try{ iframe.remove(); }catch(e){} }, 1500); }
+      };
+      // iOS/Safari: poczekaj aż przeliczy layout (2x rAF), wtedy drukuj
+      try{
+        w.requestAnimationFrame(()=>w.requestAnimationFrame(doPrint));
+      }catch(e){
+        setTimeout(doPrint, 200);
+      }
     };
   }
 
@@ -1796,14 +1805,36 @@ function renderExport(){
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${escapeHtml(out.title || "Zamówienie")}</title>
 <style>
-  body{font-family: Arial, sans-serif; padding:18px; color:#000;}
-  .wrap{border:2px solid #000; border-radius:14px; padding:14px;}
-  .top{display:flex; justify-content:space-between; align-items:flex-end; gap:10px; margin-bottom:10px;}
+  /* Stabilny druk A4 (iOS/Android) */
+  @page{ size:A4; margin:10mm; }
+
+  html,body{
+    width:210mm;
+    height:auto;
+    margin:0;
+    padding:0;
+    overflow:visible;
+    color:#000;
+    background:#fff;
+    font-family: Arial, sans-serif;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* iOS/Safari: transform potrafi rozwalić paginację */
+  *{ transform:none !important; filter:none !important; box-shadow:none !important; text-shadow:none !important; }
+
+  .wrap{ padding:0; }
+  .top{display:flex; justify-content:space-between; align-items:flex-end; gap:10px; margin:0 0 6mm;}
   .h1{font-size:18pt; font-weight:900; letter-spacing:.5px;}
   .dt{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace; font-size:10.5pt; color:#333;}
-  .meta{margin:0 0 10px; font-size:11pt;}
+  .meta{margin:0 0 4mm; font-size:11pt;}
   pre{margin:0; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace; font-size:11.5pt; line-height:1.35; white-space:pre-wrap;}
-  @media print{ body{padding:0} .wrap{border:none; border-radius:0; padding:0} }
+
+  /* nie łam w środku wierszy/sekcji */
+  pre, .top, .meta{ break-inside:avoid; page-break-inside:avoid; }
+
+  @media print{ body{padding:0;} }
 </style>
 </head>
 <body>
@@ -1815,7 +1846,7 @@ function renderExport(){
     <div class="meta"><b>${escapeHtml(out.meta || "")}</b></div>
     <pre>${escapeHtml(out.textBody || '')}</pre>
   </div>
-<script>window.onload=()=>{ setTimeout(()=>window.print(), 150); };</script>
+<script>window.onload=()=>{ requestAnimationFrame(()=>requestAnimationFrame(()=>window.print())); };</script>
 </body>
 </html>`;
   }
@@ -1863,8 +1894,25 @@ function renderExport(){
 
     const style = `
       <style>
+        /* Stabilny druk A4 (iOS/Android) */
         @page { size: A4; margin: 12mm; }
-        body{ font-family: Arial, sans-serif; }
+
+        html, body{
+          width: 210mm;
+          height: auto;
+          margin: 0;
+          padding: 0;
+          overflow: visible;
+          font-family: Arial, sans-serif;
+          color:#000;
+          background:#fff;
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+
+        /* iOS/Safari: transform potrafi rozwalić paginację */
+        *{ transform:none !important; filter:none !important; box-shadow:none !important; text-shadow:none !important; }
+
         .hdr{ display:flex; justify-content:space-between; align-items:flex-start; border-bottom:2px solid #000; padding-bottom:6mm; margin-bottom:6mm; }
         .hdr h1{ margin:0; font-size:18px; }
         .hdr .meta{ font-size:11px; margin-top:2mm; }
@@ -1874,6 +1922,7 @@ function renderExport(){
         .cat{ font-weight:700; margin:4mm 0 2mm; text-transform:uppercase; }
         .item{ margin-left:3mm; }
         .sp{ height: 10px; }
+        .hdr, .cols, .col, .cat, .item{ break-inside: avoid; page-break-inside: avoid; }
       </style>
     `;
 
@@ -1900,7 +1949,7 @@ function renderExport(){
       </div>
     `).join("");
 
-    return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(out.title || "Zamówienie")}</title>${style}</head><body>${pagesHtml}<script>window.onload=()=>{window.print();};</script></body></html>`;
+    return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(out.title || "Zamówienie")}</title>${style}</head><body>${pagesHtml}<script>window.onload=()=>{ requestAnimationFrame(()=>requestAnimationFrame(()=>window.print())); };</script></body></html>`;
   }
 
   function printExportHurt(){
