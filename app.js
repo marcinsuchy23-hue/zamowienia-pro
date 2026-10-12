@@ -572,6 +572,7 @@ function ensureInputVisible(el){
       if(!product){ toast("Nie znaleziono produktu o takiej nazwie"); return; }
       product.barcode = code;
       save();
+      queueCatalogWrite(product);
       renderCatalog();
       toast(`Kod przypisany do: ${product.name}`);
     }
@@ -2001,11 +2002,13 @@ function renderExport(){
     const exists = state.catalog.find(p => capFirst(p.name) === name && capFirst(p.category) === cat);
     if(exists){ toast("Taki produkt już jest"); return; }
 
-	  state.catalog.push({ id: uid(), name, category: cat, sections, createdAt: Date.now() });
+	  const product = { id: uid(), name, category: cat, sections, barcode: "", createdAt: Date.now() };
+	  state.catalog.push(product);
     $("newProdName").value = "";
     $("newProdCat").value = "";
 	  $("newProdSections").value = "";
     save();
+    queueCatalogWrite(product);
     renderAll();
     toast("Dodano produkt");
   }
@@ -2383,6 +2386,8 @@ To skasuje też ich pozycje w bazie.`)) return;
 
     const btnImportCatalog = document.getElementById("btnImportCatalog");
     if(btnImportCatalog) btnImportCatalog.addEventListener("click", importCatalogFromGoogleSheets);
+    const btnConnectSheetWrite = $("btnConnectSheetWrite");
+    if(btnConnectSheetWrite) btnConnectSheetWrite.addEventListener("click", configureSheetWrite);
 
     const btnExportCatalog = document.getElementById("btnExportCatalog");
     if(btnExportCatalog) btnExportCatalog.addEventListener("click", exportCatalogToCSV);
@@ -2406,7 +2411,7 @@ To skasuje też ich pozycje w bazie.`)) return;
     // Register service worker
     if("serviceWorker" in navigator){
       // Cache-bust SW itself to ensure Chrome/iOS fetches the newest worker.
-      navigator.serviceWorker.register("./sw.js?v=20261012l").catch(()=>{});
+      navigator.serviceWorker.register("./sw.js?v=20261012n").catch(()=>{});
     }
   }
 
@@ -2486,7 +2491,7 @@ To skasuje też ich pozycje w bazie.`)) return;
     for(const p of (state.catalog || [])){
       const name = csvEsc(p.name);
       const cat = csvEsc(p.category);
-      const sec = csvEsc((p.sections || []).join(";"));
+      const sec = csvEsc(Array.isArray(p.sections) ? p.sections.join(";") : String(p.sections || ""));
       const barcode = csvEsc(p.barcode || "");
       lines.push([name,cat,sec,barcode].join(","));
     }
@@ -2498,6 +2503,72 @@ To skasuje też ich pozycje w bazie.`)) return;
     a.click();
     setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 0);
     toast("Pobrano CSV");
+  }
+
+  // Google Apps Script write-back. Requests use text/plain + no-cors to avoid a
+  // preflight; the browser cannot read Apps Script's response, so we keep a queue
+  // and tell the user to verify the sheet after sending.
+  const SHEET_WRITE_GID = 912478609;
+  let sheetWriteFlushPromise = null;
+  function catalogWriteKey(p){
+    return norm(p && p.name).toLocaleLowerCase("pl-PL") + "||" + norm(p && p.category).toLocaleLowerCase("pl-PL");
+  }
+  function queueCatalogWrite(product){
+    if(!product || !product.name || !product.category) return;
+    state.settings.pendingSheetWrites ||= [];
+    const key = catalogWriteKey(product);
+    const pending = state.settings.pendingSheetWrites;
+    const existing = pending.findIndex(x => catalogWriteKey(x.product) === key);
+    const entry = { product: { name: product.name, category: product.category, sections: parseSections(product.sections), barcode: product.barcode || "" }, queuedAt: Date.now() };
+    if(existing >= 0) pending[existing] = entry;
+    else pending.push(entry);
+    save();
+    if(state.settings.sheetWriteUrl && state.settings.sheetWriteToken) flushCatalogWrites();
+  }
+  async function flushCatalogWrites(){
+    if(sheetWriteFlushPromise) return sheetWriteFlushPromise;
+    sheetWriteFlushPromise = flushCatalogWritesQueue();
+    try{ await sheetWriteFlushPromise; }
+    finally{ sheetWriteFlushPromise = null; }
+  }
+  async function flushCatalogWritesQueue(){
+    const url = norm(state.settings.sheetWriteUrl);
+    const token = norm(state.settings.sheetWriteToken);
+    const pending = state.settings.pendingSheetWrites || [];
+    if(!url || !token || !pending.length) return;
+    while(pending.length){
+      const entry = pending[0];
+      try{
+        await fetch(url, { method:"POST", mode:"no-cors", cache:"no-store", headers:{"Content-Type":"text/plain;charset=UTF-8"}, body:JSON.stringify({ token, gid:SHEET_WRITE_GID, product:entry.product }) });
+        pending.shift();
+        save();
+      }catch(err){
+        console.warn("Nie udało się wysłać produktu do Google Sheets; zostawiam w kolejce.", err);
+        save();
+        return;
+      }
+    }
+    toast("Wysłano produkty do arkusza — odśwież arkusz, aby sprawdzić zapis");
+  }
+  async function configureSheetWrite(){
+    const url = prompt("Wklej adres aplikacji internetowej Apps Script (kończy się na /exec):", state.settings.sheetWriteUrl || "");
+    if(url === null) return;
+    const cleanUrl = norm(url);
+    if(cleanUrl && !/^https:\/\/script\.google\.com\/macros\/s\//i.test(cleanUrl)){
+      alert("To nie wygląda na adres wdrożenia Apps Script. Wklej adres kończący się na /exec.");
+      return;
+    }
+    const token = prompt("Wklej token wygenerowany w Apps Script (initializeWriteToken → Dziennik wykonania):", state.settings.sheetWriteToken || "");
+    if(token === null) return;
+    if(cleanUrl && !norm(token)){
+      alert("Token jest wymagany.");
+      return;
+    }
+    state.settings.sheetWriteUrl = cleanUrl;
+    state.settings.sheetWriteToken = norm(token);
+    save();
+    if(cleanUrl) await flushCatalogWrites();
+    else toast("Automatyczny zapis wyłączony");
   }
 
   function csvEsc(v){
@@ -2538,6 +2609,8 @@ To skasuje też ich pozycje w bazie.`)) return;
     ensureSeed(); // comment this out if you don't want starter catalog
     renderAll();
     wire();
+    window.addEventListener("online", flushCatalogWrites);
+    setTimeout(flushCatalogWrites, 1200);
     // LIVE init
     initFirebase();
     liveBindUI();
