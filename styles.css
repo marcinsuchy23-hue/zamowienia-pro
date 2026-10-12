@@ -416,6 +416,10 @@ body{ overscroll-behavior-y: none; }
 .modal__title{font-weight:900; letter-spacing:.3px;}
 
 .orders-list{display:flex; flex-direction:column; gap:10px;}
+.sheet-write-status{margin:14px 0;padding:12px 14px;border:1px solid var(--line);border-radius:14px;background:rgba(255,255,255,.05);font-weight:700;line-height:1.45}
+.sheet-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:14px 0 20px}
+.sheet-actions .btn{min-width:0;white-space:normal;line-height:1.25}
+@media(max-width:700px){.sheet-actions{grid-template-columns:1fr}.sheet-actions .btn{width:100%;min-height:46px}}
 .scanner-modal{position:fixed; inset:0; z-index:10000; display:flex; align-items:center; justify-content:center; padding:14px}
 .scanner-modal.hidden{display:none}
 .scanner-backdrop{position:absolute; inset:0; background:rgba(0,0,0,.78)}

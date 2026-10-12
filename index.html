@@ -8,7 +8,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon-192.png">
   <!-- cache-bust for GitHub Pages / iOS Safari (updates show instantly) -->
-  <link rel="stylesheet" href="styles.css?v=20261013b" />
+  <link rel="stylesheet" href="styles.css?v=20261013c" />
 </head>
 <body>
   <div id="uiRoot">
@@ -76,9 +76,6 @@
           <div class="catalog-title">📚 Baza produktów</div>
           <div class="catalog-header-actions">
             <button class="btn" id="btnBackFromCatalog" type="button">← Wróć</button>
-            <button class="btn" id="btnImportCatalog" type="button">⬇ Import z Google Sheets</button>
-            <button class="btn" id="btnConnectSheetWrite" type="button" title="Ustaw automatyczny zapis produktów i kodów">🔗 Połącz zapis</button>
-            <button class="btn" id="btnExportCatalog" type="button">⬆ Export CSV</button>
           </div>
         </div>
         <div class="catalog-form-fields">
@@ -102,16 +99,9 @@
           </div>
         </div>
         <div class="row row--gap row--end catalog-form-actions">
-          <button class="btn" id="btnSeed">✨ Wgraj przykładowe</button>
           <button class="btn primary" id="btnAddProduct">➕ Dodaj produkt</button>
         </div>
       </div>
-
-      <div class="list-head">
-        <div class="list-head__title">Baza produktów</div>
-      <div class="list-head__hint">Produkty z koszyka są ukryte; pozostałe usuń przyciskiem 🗑</div>
-      </div>
-      <div class="list" id="catalogList"></div>
     </section>
 
     <section class="panel hidden" id="panelCart">
@@ -137,6 +127,8 @@
           <button class="btn" id="btnBackFromCart">← Wróć</button>
           <button class="btn" id="btnGoCatalogFromCart" title="Baza produktów">📚 Baza</button>
           <button class="btn" id="btnOrders" title="Lista zamówień">📂 Zamówienia</button>
+          <button class="btn" id="btnCopy">📋 Kopiuj zamówienie</button>
+          <button class="btn" id="btnPrintHurt">🖨 PDF Hurtownia</button>
           <button class="btn primary" id="btnGoExportFromCart">📤 Eksport</button>
         </div>
       </div>
@@ -144,25 +136,21 @@
 
     <section class="panel hidden" id="panelExport">
       <div class="card">
-        <div class="export-top">
-          <div class="export-title" id="expTitle">ZAMÓWIENIE</div>
-          <div class="export-date" id="expDate">—</div>
-        </div>
-        <div class="export-meta" id="expMeta">—</div>
+        <div class="export-title">ARKUSZ PRODUKTÓW</div>
         <div class="list-head" style="margin-top:6px">
-          <div class="list-head__title">Eksport zamówienia</div>
-          <div class="list-head__hint">Tekst do skopiowania lub PDF</div>
+          <div class="list-head__title">Google Sheets</div>
+          <div class="list-head__hint">Wczytaj, połącz zapis lub pobierz plik CSV</div>
         </div>
-        <textarea id="exportText" readonly></textarea>
+        <div class="sheet-write-status" id="sheetWriteStatus" aria-live="polite"></div>
+        <div class="sheet-actions">
+          <button class="btn" id="btnImportCatalog" type="button">⬇ Wczytaj z arkusza</button>
+          <button class="btn primary" id="btnConnectSheetWrite" type="button" title="Ustaw automatyczny zapis produktów i kodów">🔗 Połącz zapis do arkusza</button>
+          <button class="btn" id="btnExportCatalog" type="button">⬆ Pobierz bazę CSV</button>
+        </div>
         <div class="row row--gap row--end cart-actions">
           <button class="btn" id="btnBackFromExport">← Wróć</button>
+          <button class="btn" id="btnGoCatalogFromExport">📚 Baza</button>
           <button class="btn" id="btnGoCartFromExport">🧺 Koszyk</button>
-          <button class="btn" id="btnCopy">Kopiuj</button>
-          <button class="btn primary" id="btnPrintHurt">🖨 PDF Hurtownia</button>
-        </div>
-
-        <div class="small">
-          📌 PDF działa przez „Drukuj” → „Zapisz jako PDF” / „Udostępnij jako PDF” (Android/iPhone).
         </div>
       </div>
     </section>
@@ -296,7 +284,7 @@
 
   <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore-compat.js"></script>
-<script src="firebase-config.js?v=20261013b"></script>
-<script src="app.js?v=20261013b"></script>
+<script src="firebase-config.js?v=20261013c"></script>
+<script src="app.js?v=20261013c"></script>
 </body>
 </html>

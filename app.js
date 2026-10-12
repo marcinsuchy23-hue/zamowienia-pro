@@ -677,8 +677,6 @@ function ensureInputVisible(el){
     renderAll();
     if(id === "panelCatalog") renderCatalogSectionPicker();
     if(id === "panelCart") renderCart();
-    // refresh export if needed
-    if(id === "panelExport") renderExport();
   }
 
   // Update the visible panel immediately as well as the URL. Some browser/PWA
@@ -1183,6 +1181,7 @@ g.appendChild(r);
 
   function renderCatalog(){
     const list = $("catalogList");
+    if(!list) return;
     list.innerHTML = "";
     const inCart = new Set(state.order.items.map(it =>
       norm(it.name).toLocaleLowerCase("pl-PL") + "||" + norm(it.category).toLocaleLowerCase("pl-PL")
@@ -1285,7 +1284,6 @@ g.appendChild(r);
   
   function openExport(){
     navigateToRoute("export");
-    renderExport();
   }
 
   function openCart(){
@@ -1301,12 +1299,14 @@ g.appendChild(r);
       : "Koszyk jest pusty.";
   }
 
-function renderExport(){
-    const out = buildExportText();
-    $("expTitle").textContent = out.title;
-    $("expDate").textContent = out.date;
-    $("expMeta").textContent = out.meta;
-    $("exportText").value = out.textBody;
+function renderSheetConnectionStatus(){
+    const status = document.getElementById("sheetWriteStatus");
+    if(!status) return;
+    const connected = !!(norm(state.settings.sheetWriteUrl) && norm(state.settings.sheetWriteToken));
+    const pending = (state.settings.pendingSheetWrites || []).length;
+    status.textContent = connected
+      ? `Zapis do arkusza: połączony${pending ? ` • oczekuje ${pending} produkt(ów) do wysłania` : ""}`
+      : "Zapis do arkusza: niepołączony. Połącz raz na tym urządzeniu, aby wysyłać nowe produkty i kody.";
   }
 
   function updateCartCount(){
@@ -1336,6 +1336,7 @@ function renderExport(){
     renderBasket();
     renderCart();
     renderCatalog();
+    renderSheetConnectionStatus();
     updateCartCount();
     // export lazy
   }
@@ -2072,13 +2073,17 @@ function renderExport(){
   }
 
   function fallbackCopy(txt){
-    const ta = $("exportText");
+    const ta = document.createElement("textarea");
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    ta.style.pointerEvents = "none";
+    ta.style.left = "-9999px";
+    document.body.appendChild(ta);
     ta.value = txt;
     ta.focus();
     ta.select();
     document.execCommand("copy");
-    // restore body view
-    renderExport();
+    ta.remove();
     toast("Skopiowano");
   }
 
@@ -2408,7 +2413,6 @@ To skasuje też ich pozycje w bazie.`)) return;
     if(oSort) oSort.addEventListener("change", ()=>ordersRender());
 
     $("btnAddProduct").addEventListener("click", addProductFromForm);
-    $("btnSeed").addEventListener("click", () => { ensureSeed(); renderAll(); toast("Wgrano przykładowe"); });
 
     // Zamówienia (szybki przycisk na górze)
     const btnGoOrdersTop = document.getElementById("btnGoOrdersTop");
@@ -2420,6 +2424,9 @@ To skasuje też ich pozycje w bazie.`)) return;
 
     const btnBackFromCatalog = document.getElementById("btnBackFromCatalog");
     if(btnBackFromCatalog) btnBackFromCatalog.addEventListener("click", () => navigateToRoute("order"));
+
+    const btnGoCatalogFromExport = document.getElementById("btnGoCatalogFromExport");
+    if(btnGoCatalogFromExport) btnGoCatalogFromExport.addEventListener("click", () => navigateToRoute("catalog"));
 
     const btnImportCatalog = document.getElementById("btnImportCatalog");
     if(btnImportCatalog) btnImportCatalog.addEventListener("click", importCatalogFromGoogleSheets);
@@ -2446,7 +2453,7 @@ To skasuje też ich pozycje w bazie.`)) return;
     // Register service worker
     if("serviceWorker" in navigator){
       // Cache-bust SW itself to ensure Chrome/iOS fetches the newest worker.
-      navigator.serviceWorker.register("./sw.js?v=20261013b").catch(()=>{});
+      navigator.serviceWorker.register("./sw.js?v=20261013c").catch(()=>{});
     }
   }
 
@@ -2602,6 +2609,7 @@ To skasuje też ich pozycje w bazie.`)) return;
     state.settings.sheetWriteUrl = cleanUrl;
     state.settings.sheetWriteToken = norm(token);
     save();
+    renderSheetConnectionStatus();
     if(cleanUrl) await flushCatalogWrites();
     else toast("Automatyczny zapis wyłączony");
   }
