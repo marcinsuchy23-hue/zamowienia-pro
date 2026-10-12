@@ -51,6 +51,7 @@ function ensureInputVisible(el){
 }
 
   const LS_KEY = "zamowienia_pro_v1";
+  const LS_VIEW_KEY = "zamowienia_pro_view_v1";
   const DEFAULT_CATS = ["Warzywa","Mięso","Nabiał","Mrożonki","Suchy magazyn","Przyprawy","Owoce","Ryby","Inne"];
   const DEFAULT_SECTIONS = ["Grill","Palniki","Zimna","Wydawka"];
   const TZ = "Europe/Warsaw";
@@ -282,7 +283,7 @@ function ensureInputVisible(el){
     // listen items
     LIVE.unsubItems = liveItemsCol().orderBy("updatedAt","desc").onSnapshot((snap)=>{
       const arr = [];
-      snap.forEach(doc=>{ const d=doc.data()||{}; arr.push({ id: doc.id, name:d.name, category:d.category||"", qty:d.qty||"", updatedAt: d.updatedAt ? (d.updatedAt.toMillis? d.updatedAt.toMillis(): Date.now()) : Date.now(), by: (d.by && Array.isArray(d.by)) ? d.by.join(", ") : (d.by||"") , __live:true, section: d.section||"" }); });
+      snap.forEach(doc=>{ const d=doc.data()||{}; const updatedAt = d.updatedAt ? (d.updatedAt.toMillis? d.updatedAt.toMillis(): Date.now()) : Date.now(); const createdAt = d.createdAt ? (d.createdAt.toMillis? d.createdAt.toMillis(): Date.now()) : updatedAt; arr.push({ id: doc.id, name:d.name, category:d.category||"", qty:d.qty||"", createdAt, updatedAt, by: (d.by && Array.isArray(d.by)) ? d.by.join(", ") : (d.by||"") , __live:true, section: d.section||"" }); });
       state.order.items = arr;
       // Remote basket updates must not rebuild the product list: other users
       // may be searching or scrolled far down their own list.
@@ -321,14 +322,14 @@ function ensureInputVisible(el){
     await LIVE.db.runTransaction(async (tx)=>{
       const snap = await tx.get(ref);
       if(!snap.exists){
-        tx.set(ref, { name: p.name, category: p.category||"", section, qty, by: [by], updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+        tx.set(ref, { name: p.name, category: p.category||"", section, qty, by: [by], createdAt: firebase.firestore.FieldValue.serverTimestamp(), updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
       } else {
         const d = snap.data()||{};
         const oldQty = d.qty || "";
         const newQty = mergeQty(oldQty, qty);
         const byArr = Array.isArray(d.by) ? d.by.slice() : (d.by ? [d.by] : []);
         if(by && !byArr.includes(by)) byArr.push(by);
-        tx.set(ref, { name: d.name||p.name, category: d.category||p.category||"", section: d.section||section, qty: newQty, by: byArr, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, {merge:true});
+        tx.set(ref, { name: d.name||p.name, category: d.category||p.category||"", section: d.section||section, qty: newQty, by: byArr, createdAt: d.createdAt||d.updatedAt||firebase.firestore.FieldValue.serverTimestamp(), updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, {merge:true});
       }
     });
     try{ await liveOrderRef(LIVE.orderId).set({ updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, {merge:true}); }catch(e){}
@@ -349,6 +350,36 @@ function ensureInputVisible(el){
     liveTouchAlias();
   }
 
+  async function liveRestoreItem(it){
+    const ref = liveItemsCol().doc(it.id);
+    const by = Array.isArray(it.by) ? it.by : norm(it.by).split(/,\s*/).filter(Boolean);
+    await LIVE.db.runTransaction(async tx=>{
+      const snap = await tx.get(ref);
+      if(snap.exists) throw new Error("Produkt został już dodany ponownie");
+      tx.set(ref, {
+        name:it.name, category:it.category||"", section:it.section||"", qty:it.qty,
+        by, createdAt:it.createdAt ? new Date(it.createdAt) : firebase.firestore.FieldValue.serverTimestamp(),
+        updatedAt:firebase.firestore.FieldValue.serverTimestamp()
+      });
+    });
+    try{ await liveOrderRef(LIVE.orderId).set({ updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, {merge:true}); }catch(e){}
+    liveTouchAlias();
+  }
+
+  async function setBasketItemQty(it, qty){
+    if(it.__live && liveCanWrite()) return liveSetItemQty(it, qty);
+    it.qty = qty;
+    it.updatedAt = Date.now();
+    save();
+    renderAll();
+  }
+
+  function restoreLocalBasketItem(it, index){
+    state.order.items.splice(Math.min(index, state.order.items.length), 0, it);
+    save();
+    renderAll();
+  }
+
 
   const $ = (id) => document.getElementById(id);
 
@@ -356,6 +387,9 @@ function ensureInputVisible(el){
   let lastActionKey = "";
   let lastActionFocus = false;
   let focusSearchAfterAdd = false;
+  let barcodeScriptPromise = null;
+  let barcodeScannerControls = null;
+  let barcodeScannerActive = false;
 
   const state = {
     settings: { userName: "", restaurant: "Zamówienia PRO", sections: DEFAULT_SECTIONS.slice(), uiScale: 1 },
@@ -408,6 +442,170 @@ function ensureInputVisible(el){
     // Use user's locale; include weekday.
     const opts = { weekday:"long", year:"numeric", month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit" };
     return d.toLocaleString("pl-PL", opts);
+  }
+
+  function fmtShortDateTime(ts){
+    const d = new Date(Number(ts));
+    if(!Number.isFinite(d.getTime())) return "—";
+    return d.toLocaleString("pl-PL", { day:"2-digit", month:"2-digit", hour:"2-digit", minute:"2-digit" });
+  }
+
+  function loadBarcodeLibrary(){
+    if(window.ZXingBrowser) return Promise.resolve(window.ZXingBrowser);
+    if(barcodeScriptPromise) return barcodeScriptPromise;
+    barcodeScriptPromise = new Promise((resolve,reject)=>{
+      const script = document.createElement("script");
+      script.src = "https://unpkg.com/@zxing/browser@0.2.1/umd/zxing-browser.min.js";
+      script.async = true;
+      script.onload = ()=>window.ZXingBrowser ? resolve(window.ZXingBrowser) : reject(new Error("Nie można uruchomić czytnika kodów"));
+      script.onerror = ()=>reject(new Error("Brak połączenia z biblioteką skanowania"));
+      document.head.appendChild(script);
+    });
+    return barcodeScriptPromise;
+  }
+
+  async function openBarcodeScanner(){
+    const modal = $("scannerModal");
+    modal.classList.remove("hidden");
+    $("scannerStatus").textContent = "Proszę zezwolić na dostęp do aparatu…";
+    $("scannerManualCode").value = "";
+    if(!window.isSecureContext || !navigator.mediaDevices?.getUserMedia){
+      $("scannerStatus").textContent = "Aparat wymaga bezpiecznego połączenia HTTPS. Możesz wpisać kod ręcznie poniżej.";
+      return;
+    }
+    try{
+      const ZXing = await loadBarcodeLibrary();
+      if(!modal.isConnected || modal.classList.contains("hidden")) return;
+      const reader = new ZXing.BrowserMultiFormatReader();
+      const video = $("scannerVideo");
+      barcodeScannerActive = true;
+      $("scannerStatus").textContent = "Uruchamiam aparat…";
+      const controls = await reader.decodeFromConstraints({
+        video: {
+          facingMode: { ideal: "environment" },
+          width: { ideal: 2560 },
+          height: { ideal: 1440 }
+        }
+      }, video, result=>{
+        if(result && barcodeScannerActive) processScannedBarcode(result.getText());
+      });
+      if(!barcodeScannerActive){ try{ controls.stop(); }catch(e){} return; }
+      barcodeScannerControls = controls;
+      requestContinuousCameraFocus(video);
+      configureScannerZoom(video);
+      $("scannerStatus").textContent = "Mały kod? Odsuń telefon, ustaw ostrość i użyj suwaka powiększenia.";
+    }catch(e){
+      console.warn(e);
+      barcodeScriptPromise = null;
+      stopBarcodeScanner();
+      $("scannerStatus").textContent = "Nie udało się uruchomić aparatu. Sprawdź uprawnienia lub wpisz kod ręcznie.";
+    }
+  }
+
+  function requestContinuousCameraFocus(video){
+    try{
+      const track = video?.srcObject?.getVideoTracks?.()[0];
+      if(!track?.applyConstraints) return;
+      const modes = track.getCapabilities?.()?.focusMode;
+      if(Array.isArray(modes) && modes.includes("continuous")){
+        track.applyConstraints({advanced:[{focusMode:"continuous"}]}).catch(()=>{});
+      }else if(!modes){
+        // Some browsers omit getCapabilities(); an ideal request is safe to ignore if unsupported.
+        track.applyConstraints({focusMode:{ideal:"continuous"}}).catch(()=>{});
+      }
+    }catch(e){ /* Autofocus is optional; keep scanning on cameras without this control. */ }
+  }
+
+  function configureScannerZoom(video){
+    const slider = $("scannerZoom");
+    const label = $("scannerZoomLabel");
+    const track = video?.srcObject?.getVideoTracks?.()[0];
+    slider.disabled = true;
+    label.textContent = "Powiększenie aparatu niedostępne";
+    try{
+      const range = track?.getCapabilities?.()?.zoom;
+      if(!range || !Number.isFinite(range.min) || !Number.isFinite(range.max) || range.max <= range.min) return;
+      slider.min = String(range.min);
+      slider.max = String(range.max);
+      slider.step = String(Number.isFinite(range.step) && range.step > 0 ? range.step : 0.1);
+      const current = track.getSettings?.()?.zoom;
+      slider.value = String(Number.isFinite(current) ? current : range.min);
+      slider.disabled = false;
+      label.textContent = `Powiększenie aparatu: ${Number(slider.value).toFixed(1)}×`;
+    }catch(e){ /* Keep the manual code entry available if camera zoom is not exposed. */ }
+  }
+
+  function updateScannerZoomLabel(){
+    const slider = $("scannerZoom");
+    const label = $("scannerZoomLabel");
+    if(!slider.disabled) label.textContent = `Powiększenie aparatu: ${Number(slider.value).toFixed(1)}×`;
+  }
+
+  async function applyScannerZoom(){
+    const slider = $("scannerZoom");
+    if(slider.disabled) return;
+    const track = $("scannerVideo")?.srcObject?.getVideoTracks?.()[0];
+    if(!track?.applyConstraints) return;
+    try{
+      await track.applyConstraints({advanced:[{zoom:Number(slider.value)}]});
+      updateScannerZoomLabel();
+    }catch(e){
+      $("scannerZoomLabel").textContent = "Nie udało się zmienić powiększenia aparatu";
+    }
+  }
+
+  function stopBarcodeScanner(){
+    barcodeScannerActive = false;
+    if(barcodeScannerControls){ try{ barcodeScannerControls.stop(); }catch(e){} }
+    barcodeScannerControls = null;
+    const video = $("scannerVideo");
+    if(video){
+      try{ video.pause(); }catch(e){}
+      if(video.srcObject){
+        try{ video.srcObject.getTracks().forEach(track=>track.stop()); }catch(e){}
+        video.srcObject = null;
+      }
+    }
+    const zoom = $("scannerZoom");
+    if(zoom) zoom.disabled = true;
+    const zoomLabel = $("scannerZoomLabel");
+    if(zoomLabel) zoomLabel.textContent = "Powiększenie aparatu niedostępne";
+  }
+
+  function closeBarcodeScanner(){
+    stopBarcodeScanner();
+    const modal = $("scannerModal");
+    if(modal) modal.classList.add("hidden");
+  }
+
+  function processScannedBarcode(value){
+    const code = norm(value).replace(/\s+/g, "");
+    if(!code){ toast("Nie odczytano kodu"); return; }
+    closeBarcodeScanner();
+    let product = state.catalog.find(p=>norm(p.barcode).replace(/\s+/g, "") === code);
+    if(!product){
+      const productName = prompt(`Nie ma jeszcze produktu przypisanego do kodu ${code}.\nWpisz dokładną nazwę produktu z bazy, aby zapisać to przypisanie:`);
+      if(productName === null) return;
+      product = state.catalog.find(p=>norm(p.name).toLocaleLowerCase("pl-PL") === norm(productName).toLocaleLowerCase("pl-PL"));
+      if(!product){ toast("Nie znaleziono produktu o takiej nazwie"); return; }
+      product.barcode = code;
+      save();
+      renderCatalog();
+      toast(`Kod przypisany do: ${product.name}`);
+    }
+    const search = $("filterSearch");
+    search.value = product.name;
+    updateSearchClearState();
+    renderProductList();
+    saveListPosition();
+    setTimeout(()=>{
+      const qty = document.querySelector("#productList .item input.qty");
+      if(qty){
+        try{ qty.focus({preventScroll:true}); }catch(e){ qty.focus(); }
+        ensureInputVisible(qty);
+      }
+    }, 40);
+    toast(`Znaleziono: ${product.name} — wpisz ilość`);
   }
 
   function lastOrderTime(){
@@ -497,6 +695,8 @@ function ensureInputVisible(el){
   }
 
   function renderFilters(){
+    renderSearchSuggestions();
+    updateSearchClearState();
 	  // Sekcja
 	  const selSec = $("filterSection");
 	  const secs = buildSections();
@@ -567,6 +767,41 @@ function ensureInputVisible(el){
       onlyBtn.textContent = state.ui.onlyInCart ? "Włączone" : "Wyłączone";
       onlyBtn.classList.toggle("primary", !!state.ui.onlyInCart);
     }
+  }
+
+  function renderSearchSuggestions(){
+    const list = $("productSearchSuggestions");
+    if(!list) return;
+    const names = Array.from(new Set((state.catalog||[]).map(p=>norm(p.name)).filter(Boolean)))
+      .sort((a,b)=>a.localeCompare(b,"pl")).slice(0,250);
+    list.replaceChildren(...names.map(name=>{
+      const option = document.createElement("option");
+      option.value = name;
+      return option;
+    }));
+  }
+
+  function updateSearchClearState(){
+    const wrap = $("filterSearch")?.closest(".search-wrap");
+    if(wrap) wrap.classList.toggle("has-value", !!norm($("filterSearch").value));
+  }
+
+  function saveListPosition(){
+    const panel = $("panelOrder");
+    if(panel && panel.classList.contains("hidden")) return;
+    try{
+      localStorage.setItem(LS_VIEW_KEY, JSON.stringify({
+        scrollY: Math.max(0, window.scrollY||0),
+        search: $("filterSearch") ? $("filterSearch").value : ""
+      }));
+    }catch(e){}
+  }
+
+  function loadListPosition(){
+    try{
+      const value = JSON.parse(localStorage.getItem(LS_VIEW_KEY)||"null");
+      return value && typeof value === "object" ? value : null;
+    }catch(e){ return null; }
   }
 
   function getFilteredProducts(){
@@ -738,6 +973,8 @@ function ensureInputVisible(el){
           focusSearchAfterAdd = true;
           const searchEl = $("filterSearch");
           if(searchEl) searchEl.value = "";
+          updateSearchClearState();
+          saveListPosition();
           rememberScroll();
           addToOrder(p, qty);
           row.classList.add("item--flash");
@@ -825,9 +1062,11 @@ function ensureInputVisible(el){
       it.updatedAt = now;
       it.by = it.by && it.by !== by ? it.by : by; // keep if mixed; we'll track via list anyway
     }else{
-      state.order.items.push({ id: uid(), name, category, qty, updatedAt: now, by });
+      state.order.items.push({ id: uid(), name, category, qty, createdAt: now, updatedAt: now, by });
     }
     toast("Dodano do koszyka ✅");
+    const warning = quantityWarning(it ? it.qty : qty);
+    if(warning) setTimeout(()=>toast("Sprawdź ilość: " + warning), 250);
     // usage stats
     const ukey = (prod.name||"").toLowerCase();
     state.stats.usage[ukey] = (state.stats.usage[ukey]||0) + 1;
@@ -870,6 +1109,20 @@ function ensureInputVisible(el){
       return formatNum(parsed.reduce((sum, item) => sum + item.num, 0)) + units[0];
     }
     return null;
+  }
+
+  function quantityWarning(qty){
+    const parts = norm(qty).split(/\s*\+\s*/).filter(Boolean);
+    const normalized = sumQtyParts(parts);
+    if(parts.length > 1 && normalized == null) return "Sprawdź jednostki — nie można ich przeliczyć razem";
+    const parsed = parseQty(normalized || qty);
+    if(!parsed || parsed.num == null) return "Sprawdź zapis ilości";
+    if(!parsed.unit) return "Brak jednostki";
+    const info = unitInfo(parsed.unit);
+    if(info && info.group === "mass" && parsed.num * info.factor > 100000) return "Bardzo duża ilość — sprawdź jednostkę";
+    if(info && info.group === "volume" && parsed.num * info.factor > 200000) return "Bardzo duża ilość — sprawdź jednostkę";
+    if(!info && parsed.num > 500) return "Bardzo duża ilość — sprawdź jednostkę";
+    return "";
   }
 
   function unitInfo(unit){
@@ -935,38 +1188,56 @@ function ensureInputVisible(el){
             <div class="brow__left">
               <div class="brow__name">${escapeHtml(it.name)}</div>
               <div class="brow__by">Dodane przez: ${escapeHtml(it.by || "—")}</div>
+              <div class="brow__updated">Dodano: ${escapeHtml(fmtShortDateTime(it.createdAt || it.updatedAt))}</div>
+              <div class="brow__updated">Ostatnia zmiana: ${escapeHtml(fmtShortDateTime(it.updatedAt))}</div>
             </div>
             <div class="brow__right">
+              <button class="smallbtn qty-step" data-step="-1" title="Zmniejsz o 1">−</button>
               <div class="brow__qty" title="Kliknij, żeby edytować">${escapeHtml(it.qty)}</div>
+              <button class="smallbtn qty-step" data-step="1" title="Zwiększ o 1">+</button>
               <button class="smallbtn danger" title="Usuń">🗑</button>
             </div>
+            ${quantityWarning(it.qty) ? `<div class="brow__warning">⚠ ${escapeHtml(quantityWarning(it.qty))}</div>` : ""}
           `;
           const qty = r.querySelector(".brow__qty");
-          const del = r.querySelector("button");
+          const del = r.querySelector("button.danger");
+
+          r.querySelectorAll(".qty-step").forEach(stepBtn=>{
+            stepBtn.addEventListener("click", ()=>{
+              const delta = Number(stepBtn.getAttribute("data-step")) || 0;
+              const normalized = sumQtyParts(norm(it.qty).split(/\s*\+\s*/)) || norm(it.qty);
+              const parsed = parseQty(normalized);
+              if(!parsed || parsed.num == null){ toast("Tę ilość zmień ręcznie"); return; }
+              const next = Math.max(0, parsed.num + delta);
+              const nextQty = formatNum(next) + (parsed.unit || "");
+              const oldQty = it.qty;
+              setBasketItemQty(it, nextQty)
+                .then(()=>showUndoToast("Ilość zmieniona", ()=>setBasketItemQty(it, oldQty)))
+                .catch(e=>{ console.error(e); toast("Błąd LIVE zapisu"); });
+            });
+          });
 
           qty.addEventListener("click", () => {
             const v = prompt(`Zmień ilość: ${it.name}`, it.qty);
             if(v === null) return;
             const nv = norm(v);
             if(!nv){ toast("Ilość nie może być pusta"); return; }
-
-            // LIVE sync: edycja ma być widoczna na innych urządzeniach
-            if(it.__live && liveCanWrite()){
-              liveSetItemQty(it, nv).catch(e=>{ console.error(e); toast("Błąd LIVE zapisu"); });
-              return;
-            }
-
-            it.qty = nv;
-            save();
-            renderAll();
+            const oldQty = it.qty;
+            setBasketItemQty(it, nv)
+              .then(()=>showUndoToast("Ilość zmieniona", ()=>setBasketItemQty(it, oldQty)))
+              .catch(e=>{ console.error(e); toast("Błąd LIVE zapisu"); });
           });
 
           del.addEventListener("click", () => {
             if(!confirm(`Usunąć: ${it.name}?`)) return;
+            const snapshot = {...it};
+            const index = state.order.items.findIndex(x=>x.id === it.id);
 
             // LIVE sync: usuń z bazy, żeby zniknęło na wszystkich urządzeniach
             if(it.__live && liveCanWrite()){
-              liveDeleteItem(it).catch(e=>{ console.error(e); toast("Błąd LIVE usuwania"); });
+              liveDeleteItem(it)
+                .then(()=>showUndoToast("Pozycja usunięta", ()=>liveRestoreItem(snapshot)))
+                .catch(e=>{ console.error(e); toast("Błąd LIVE usuwania"); });
               return;
             }
 
@@ -978,6 +1249,7 @@ function ensureInputVisible(el){
             }
             save();
             renderAll();
+            showUndoToast("Pozycja usunięta", ()=>restoreLocalBasketItem(snapshot, index < 0 ? state.order.items.length : index));
           });
 g.appendChild(r);
         }
@@ -1003,6 +1275,7 @@ g.appendChild(r);
         <div class="item__left">
           <div class="item__name">${escapeHtml(p.name)}</div>
           <div class="item__meta">${escapeHtml(capFirst(p.category) || "Inne")}</div>
+          ${p.barcode ? `<div class="item__meta">Kod: ${escapeHtml(p.barcode)}</div>` : ""}
         </div>
         <div class="item__right">
           <button class="smallbtn danger" title="Usuń">🗑</button>
@@ -1140,6 +1413,7 @@ function renderExport(){
 
   // Toast
   let toastTimer = null;
+  let undoToastTimer = null;
   function toast(msg){
     let el = document.getElementById("toast");
     if(!el){
@@ -1164,6 +1438,38 @@ function renderExport(){
     el.style.display = "block";
     if(toastTimer) clearTimeout(toastTimer);
     toastTimer = setTimeout(() => { el.style.display = "none"; }, 1800);
+  }
+
+  function showUndoToast(message, undo){
+    let el = document.getElementById("undoToast");
+    if(!el){
+      el = document.createElement("div");
+      el.id = "undoToast";
+      Object.assign(el.style, {position:"fixed", left:"50%", bottom:"18px", transform:"translateX(-50%)", zIndex:"1000", display:"flex", alignItems:"center", gap:"12px", background:"rgba(0,0,0,.92)", color:"#fff", padding:"10px 12px", borderRadius:"12px", border:"1px solid rgba(255,255,255,.2)", fontWeight:"700", maxWidth:"94vw", boxShadow:"0 6px 24px rgba(0,0,0,.45)"});
+      document.body.appendChild(el);
+    }
+    const label = document.createElement("span");
+    label.textContent = message;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = "Cofnij";
+    Object.assign(button.style, {border:0, borderRadius:"8px", padding:"8px 12px", background:"#7c3aed", color:"white", fontWeight:"900", cursor:"pointer", whiteSpace:"nowrap"});
+    el.replaceChildren(label, button);
+    el.style.display = "flex";
+    if(undoToastTimer) clearTimeout(undoToastTimer);
+    undoToastTimer = setTimeout(()=>{ el.style.display="none"; }, 8000);
+    button.addEventListener("click", async()=>{
+      button.disabled = true;
+      try{
+        await undo();
+        el.style.display = "none";
+        toast("Ostatnia zmiana cofnięta");
+      }catch(e){
+        console.error(e);
+        toast("Nie udało się cofnąć — koszyk mógł się już zmienić");
+        el.style.display = "none";
+      }
+    }, {once:true});
   }
 
   function escapeAttr(s){ return String(s||"").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
@@ -1811,6 +2117,7 @@ function renderExport(){
   function addProductFromForm(){
     const name = capFirst($("newProdName").value.toLowerCase());
     const cat = capFirst($("newProdCat").value);
+    const barcode = norm($("newProdBarcode").value).replace(/\s+/g, "");
 	  const checked = getCheckedSections();
 	  const sections = checked.length ? checked : parseSections($("newProdSections").value);
     if(!name){ toast("Podaj nazwę produktu"); return; }
@@ -1819,10 +2126,15 @@ function renderExport(){
     // de-dupe by name+cat
     const exists = state.catalog.find(p => capFirst(p.name) === name && capFirst(p.category) === cat);
     if(exists){ toast("Taki produkt już jest"); return; }
+    if(barcode && state.catalog.some(p=>norm(p.barcode).replace(/\s+/g, "") === barcode)){
+      toast("Ten kod kreskowy jest już przypisany");
+      return;
+    }
 
-	  state.catalog.push({ id: uid(), name, category: cat, sections, createdAt: Date.now() });
+	  state.catalog.push({ id: uid(), name, category: cat, sections, barcode, createdAt: Date.now() });
     $("newProdName").value = "";
     $("newProdCat").value = "";
+	  $("newProdBarcode").value = "";
 	  $("newProdSections").value = "";
     save();
     renderAll();
@@ -1837,7 +2149,9 @@ function renderExport(){
     // reset filters for convenience
 	    $("filterSection").value = "__ALL__";
 	    $("filterCategory").value = "__ALL__";
-	    $("search").value = "";
+	    $("filterSearch").value = "";
+	    updateSearchClearState();
+	    saveListPosition();
     renderAll();
     toast("Nowe zamówienie");
   }
@@ -2048,6 +2362,13 @@ function renderExport(){
 
   // Init + events
   function wire(){
+    let viewSaveTimer = null;
+    window.addEventListener("scroll", ()=>{
+      clearTimeout(viewSaveTimer);
+      viewSaveTimer = setTimeout(saveListPosition, 250);
+    }, {passive:true});
+    window.addEventListener("pagehide", saveListPosition);
+    document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState === "hidden") saveListPosition(); });
     $("btnMenu").addEventListener("click", openSheet);
     $("sheetBackdrop").addEventListener("click", closeSheet);
     $("btnCloseSheet").addEventListener("click", closeSheet);
@@ -2064,7 +2385,36 @@ function renderExport(){
 
 	    $("filterSection").addEventListener("change", () => { renderFilters(); renderProductList(); });
 	    $("filterCategory").addEventListener("change", renderProductList);
-    $("filterSearch").addEventListener("input", renderProductList);
+	    $("filterSearch").addEventListener("input", ()=>{
+      updateSearchClearState();
+      renderProductList();
+      saveListPosition();
+    });
+    const clearSearch = $("btnClearSearch");
+    if(clearSearch) clearSearch.addEventListener("click", ()=>{
+      $("filterSearch").value = "";
+      updateSearchClearState();
+      renderProductList();
+      saveListPosition();
+      $("filterSearch").focus();
+    });
+    const scanButton = $("btnScanBarcode");
+    if(scanButton) scanButton.addEventListener("click", openBarcodeScanner);
+    $("btnScannerClose").addEventListener("click", closeBarcodeScanner);
+    $("btnScannerFocus").addEventListener("click", ()=>{
+      requestContinuousCameraFocus($("scannerVideo"));
+      $("scannerStatus").textContent = "Ponowiono prośbę o autofocus. Przy małym kodzie odsuń telefon i zwiększ powiększenie suwakiem.";
+    });
+    $("scannerZoom").addEventListener("input", updateScannerZoomLabel);
+    $("scannerZoom").addEventListener("change", applyScannerZoom);
+    $("scannerBackdrop").addEventListener("click", closeBarcodeScanner);
+    $("btnScannerManual").addEventListener("click", ()=>processScannedBarcode($("scannerManualCode").value));
+    $("scannerManualCode").addEventListener("keydown", ev=>{
+      if(ev.key === "Enter"){ ev.preventDefault(); processScannedBarcode(ev.currentTarget.value); }
+    });
+    document.addEventListener("keydown", ev=>{
+      if(ev.key === "Escape" && !$("scannerModal").classList.contains("hidden")) closeBarcodeScanner();
+    });
     const favBtn = document.getElementById("btnFav");
     if(favBtn){ favBtn.addEventListener("click", ()=>{ state.ui.favMode = !state.ui.favMode; save(); renderFilters(); renderProductList(); }); }
     const topBtn = document.getElementById("btnTop");
@@ -2080,7 +2430,24 @@ function renderExport(){
     if(btnQuick) btnQuick.addEventListener("click", refreshCatalogQuick);
     
     if(document.getElementById("btnNewOrder2")) $("btnNewOrder2").addEventListener("click", newOrder);
-    if(document.getElementById("btnClearCart")) $("btnClearCart").addEventListener("click", () => { if(confirm("Wyczyścić koszyk?")){ state.order.items=[]; save(); renderAll(); toast("Koszyk wyczyszczony"); } });
+    if(document.getElementById("btnClearCart")) $("btnClearCart").addEventListener("click", () => {
+      if(!confirm("Wyczyścić koszyk?")) return;
+      const snapshot = state.order.items.map(it=>({...it}));
+      if(LIVE.ready && liveCanWrite() && snapshot.every(it=>it.__live)){
+        Promise.all(snapshot.map(it=>liveDeleteItem(it)))
+          .then(()=>showUndoToast("Koszyk wyczyszczony", ()=>Promise.all(snapshot.map(it=>liveRestoreItem(it)))))
+          .catch(e=>{ console.error(e); toast("Nie udało się wyczyścić koszyka"); });
+        return;
+      }
+      state.order.items=[];
+      save();
+      renderAll();
+      showUndoToast("Koszyk wyczyszczony", ()=>{
+        state.order.items = snapshot;
+        save();
+        renderAll();
+      });
+    });
 $("btnBack").addEventListener("click", () => showPanel("panelOrder"));
 
     $("btnCopy").addEventListener("click", copyExport);
@@ -2208,7 +2575,7 @@ To skasuje też ich pozycje w bazie.`)) return;
     // Register service worker
     if("serviceWorker" in navigator){
       // Cache-bust SW itself to ensure Chrome/iOS fetches the newest worker.
-      navigator.serviceWorker.register("./sw.js?v=20261012d").catch(()=>{});
+      navigator.serviceWorker.register("./sw.js?v=20261012j").catch(()=>{});
     }
   }
 
@@ -2225,16 +2592,22 @@ To skasuje też ich pozycje w bazie.`)) return;
     const idxName = header.indexOf("name");
     const idxCategory = header.indexOf("category");
     const idxSections = header.indexOf("sections");
+    const idxBarcode = header.indexOf("barcode");
     if(idxName === -1 || idxCategory === -1) throw new Error("CSV musi mieć kolumny name i category");
 
     const out = [];
+    const oldBarcodeByProduct = new Map((state.catalog||[]).map(p=>[
+      (norm(p.name).toLocaleLowerCase("pl-PL") + "||" + norm(p.category).toLocaleLowerCase("pl-PL")), p.barcode||""
+    ]));
     for(let i=1;i<rows.length;i++){
       const r = rows[i];
       const name = capFirst(norm(r[idxName] || ""));
       const category = capFirst(norm(r[idxCategory] || ""));
       if(!name || !category) continue;
       const sections = idxSections >= 0 ? norm(r[idxSections] || "") : "";
-      out.push({ id: uid(), name, category, sections, createdAt: Date.now() });
+      const key = norm(name).toLocaleLowerCase("pl-PL") + "||" + norm(category).toLocaleLowerCase("pl-PL");
+      const barcode = idxBarcode >= 0 ? norm(r[idxBarcode]||"").replace(/\s+/g, "") : (oldBarcodeByProduct.get(key)||"");
+      out.push({ id: uid(), name, category, sections, barcode, createdAt: Date.now() });
     }
     state.catalog = out;
     if(saveUrl){
@@ -2278,12 +2651,13 @@ To skasuje też ich pozycje w bazie.`)) return;
   }
 
   function exportCatalogToCSV(){
-    const lines = ["name,category,sections"]; // sections = ';' separated
+    const lines = ["name,category,sections,barcode"]; // sections = ';' separated
     for(const p of (state.catalog || [])){
       const name = csvEsc(p.name);
       const cat = csvEsc(p.category);
       const sec = csvEsc((p.sections || []).join(";"));
-      lines.push([name,cat,sec].join(","));
+      const barcode = csvEsc(p.barcode || "");
+      lines.push([name,cat,sec,barcode].join(","));
     }
     const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
     const a = document.createElement("a");
@@ -2329,10 +2703,18 @@ To skasuje też ich pozycje w bazie.`)) return;
 
   function boot(){
     load();
+    const savedView = loadListPosition();
+    if(savedView && typeof savedView.search === "string") $("filterSearch").value = savedView.search;
     applyUiScale(state.settings.uiScale);
     ensureSeed(); // comment this out if you don't want starter catalog
     renderAll();
     wire();
+    if(savedView && Number.isFinite(Number(savedView.scrollY))){
+      requestAnimationFrame(()=>{
+        const maxScroll = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+        window.scrollTo(0, Math.min(maxScroll, Math.max(0, Number(savedView.scrollY))));
+      });
+    }
     // LIVE init
     initFirebase();
     liveBindUI();
