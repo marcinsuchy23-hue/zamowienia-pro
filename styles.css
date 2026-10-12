@@ -206,6 +206,7 @@ textarea{
 .group__title{font-weight:900; margin:10px 0 6px}
 .brow{
   display:flex; align-items:center; justify-content:space-between;
+  flex-wrap:wrap;
   padding:10px 10px;
   border-radius:12px;
   border:1px solid var(--line);
@@ -224,6 +225,8 @@ textarea{
 }
 .brow__by{color:var(--muted); font-size:12px; margin-top:2px}
 .brow__right{display:flex; align-items:center; gap:8px}
+.brow__warning{flex:0 0 100%; color:#ffd27a; font-size:12px; padding:0 2px 2px}
+.qty-step{min-width:38px; min-height:38px; font-size:18px; font-weight:900; line-height:1}
 
 .sheet{position:fixed; inset:0; z-index:50; display:block}
 .sheet__backdrop{position:absolute; inset:0; background:rgba(0,0,0,.55)}

@@ -828,6 +828,8 @@ function ensureInputVisible(el){
       state.order.items.push({ id: uid(), name, category, qty, updatedAt: now, by });
     }
     toast("Dodano do koszyka ✅");
+    const warning = quantityWarning(it ? it.qty : qty);
+    if(warning) setTimeout(()=>toast("Sprawdź ilość: " + warning), 250);
     // usage stats
     const ukey = (prod.name||"").toLowerCase();
     state.stats.usage[ukey] = (state.stats.usage[ukey]||0) + 1;
@@ -870,6 +872,20 @@ function ensureInputVisible(el){
       return formatNum(parsed.reduce((sum, item) => sum + item.num, 0)) + units[0];
     }
     return null;
+  }
+
+  function quantityWarning(qty){
+    const parts = norm(qty).split(/\s*\+\s*/).filter(Boolean);
+    const normalized = sumQtyParts(parts);
+    if(parts.length > 1 && normalized == null) return "Sprawdź jednostki — nie można ich przeliczyć razem";
+    const parsed = parseQty(normalized || qty);
+    if(!parsed || parsed.num == null) return "Sprawdź zapis ilości";
+    if(!parsed.unit) return "Brak jednostki";
+    const info = unitInfo(parsed.unit);
+    if(info && info.group === "mass" && parsed.num * info.factor > 100000) return "Bardzo duża ilość — sprawdź jednostkę";
+    if(info && info.group === "volume" && parsed.num * info.factor > 200000) return "Bardzo duża ilość — sprawdź jednostkę";
+    if(!info && parsed.num > 500) return "Bardzo duża ilość — sprawdź jednostkę";
+    return "";
   }
 
   function unitInfo(unit){
@@ -937,12 +953,33 @@ function ensureInputVisible(el){
               <div class="brow__by">Dodane przez: ${escapeHtml(it.by || "—")}</div>
             </div>
             <div class="brow__right">
+              <button class="smallbtn qty-step" data-step="-1" title="Zmniejsz o 1">−</button>
               <div class="brow__qty" title="Kliknij, żeby edytować">${escapeHtml(it.qty)}</div>
+              <button class="smallbtn qty-step" data-step="1" title="Zwiększ o 1">+</button>
               <button class="smallbtn danger" title="Usuń">🗑</button>
             </div>
+            ${quantityWarning(it.qty) ? `<div class="brow__warning">⚠ ${escapeHtml(quantityWarning(it.qty))}</div>` : ""}
           `;
           const qty = r.querySelector(".brow__qty");
-          const del = r.querySelector("button");
+          const del = r.querySelector("button.danger");
+
+          r.querySelectorAll(".qty-step").forEach(stepBtn=>{
+            stepBtn.addEventListener("click", ()=>{
+              const delta = Number(stepBtn.getAttribute("data-step")) || 0;
+              const normalized = sumQtyParts(norm(it.qty).split(/\s*\+\s*/)) || norm(it.qty);
+              const parsed = parseQty(normalized);
+              if(!parsed || parsed.num == null){ toast("Tę ilość zmień ręcznie"); return; }
+              const next = Math.max(0, parsed.num + delta);
+              const nextQty = formatNum(next) + (parsed.unit || "");
+              if(it.__live && liveCanWrite()){
+                liveSetItemQty(it, nextQty).catch(e=>{ console.error(e); toast("Błąd LIVE zapisu"); });
+                return;
+              }
+              it.qty = nextQty;
+              save();
+              renderAll();
+            });
+          });
 
           qty.addEventListener("click", () => {
             const v = prompt(`Zmień ilość: ${it.name}`, it.qty);
@@ -2208,7 +2245,7 @@ To skasuje też ich pozycje w bazie.`)) return;
     // Register service worker
     if("serviceWorker" in navigator){
       // Cache-bust SW itself to ensure Chrome/iOS fetches the newest worker.
-      navigator.serviceWorker.register("./sw.js?v=20261012d").catch(()=>{});
+      navigator.serviceWorker.register("./sw.js?v=20261012e").catch(()=>{});
     }
   }
 
