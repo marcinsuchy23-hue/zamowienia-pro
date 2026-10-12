@@ -359,6 +359,7 @@ function ensureInputVisible(el){
   let barcodeScriptPromise = null;
   let barcodeScannerControls = null;
   let barcodeScannerActive = false;
+  let barcodeScanTarget = "order";
 
   const state = {
     settings: { userName: "", restaurant: "Zamówienia PRO", sections: DEFAULT_SECTIONS.slice(), uiScale: 1 },
@@ -466,7 +467,8 @@ function ensureInputVisible(el){
     return "Nie udało się uruchomić aparatu. Spróbuj ponownie lub wpisz kod ręcznie.";
   }
 
-  async function openBarcodeScanner(){
+  async function openBarcodeScanner(target="order"){
+    barcodeScanTarget = target;
     const modal = $("scannerModal");
     modal.classList.remove("hidden");
     $("scannerStatus").textContent = "Proszę zezwolić na dostęp do aparatu…";
@@ -483,7 +485,7 @@ function ensureInputVisible(el){
       barcodeScannerActive = true;
       $("scannerStatus").textContent = "Uruchamiam aparat…";
       const controls = await startBarcodeCamera(reader, video, result=>{
-        if(result && barcodeScannerActive) processScannedBarcode(result.getText());
+        if(result && barcodeScannerActive) processScannedBarcode(result.getText(), barcodeScanTarget);
       });
       if(!barcodeScannerActive){ try{ controls.stop(); }catch(e){} return; }
       barcodeScannerControls = controls;
@@ -563,10 +565,15 @@ function ensureInputVisible(el){
     if(modal) modal.classList.add("hidden");
   }
 
-  function processScannedBarcode(value){
+  function processScannedBarcode(value, target=barcodeScanTarget){
     const code = norm(value).replace(/\s+/g, "");
     if(!code){ toast("Nie odczytano kodu"); return; }
     closeBarcodeScanner();
+    if(target === "newProduct"){
+      $("newProdBarcode").value = code;
+      toast("Kod wpisany do formularza produktu — zatwierdź Dodaj produkt");
+      return;
+    }
     let product = state.catalog.find(p=>norm(p.barcode).replace(/\s+/g, "") === code);
     if(!product){
       const productName = prompt(`Nie ma jeszcze produktu przypisanego do kodu ${code}.\nWpisz dokładną nazwę produktu z bazy, aby zapisać to przypisanie:`);
@@ -2028,6 +2035,7 @@ function renderSheetConnectionStatus(){
   function addProductFromForm(){
     const name = capFirst($("newProdName").value.toLowerCase());
     const cat = capFirst($("newProdCat").value);
+    const barcode = norm($("newProdBarcode").value).replace(/\s+/g, "");
 	  const checked = getCheckedSections();
 	  const sections = checked.length ? checked : parseSections($("newProdSections").value);
     if(!name){ toast("Podaj nazwę produktu"); return; }
@@ -2036,11 +2044,16 @@ function renderSheetConnectionStatus(){
     // de-dupe by name+cat
     const exists = state.catalog.find(p => capFirst(p.name) === name && capFirst(p.category) === cat);
     if(exists){ toast("Taki produkt już jest"); return; }
+    if(barcode && state.catalog.some(p => norm(p.barcode).replace(/\s+/g, "") === barcode)){
+      toast("Ten kod kreskowy jest już przypisany do innego produktu");
+      return;
+    }
 
-	  const product = { id: uid(), name, category: cat, sections, barcode: "", createdAt: Date.now() };
+	  const product = { id: uid(), name, category: cat, sections, barcode, createdAt: Date.now() };
 	  state.catalog.push(product);
     $("newProdName").value = "";
     $("newProdCat").value = "";
+	  $("newProdBarcode").value = "";
 	  $("newProdSections").value = "";
     save();
     queueCatalogWrite(product);
@@ -2303,6 +2316,8 @@ function renderSheetConnectionStatus(){
     if(btnQuick) btnQuick.addEventListener("click", refreshCatalogQuick);
     const scanButton = $("btnScanBarcode");
     if(scanButton) scanButton.addEventListener("click", openBarcodeScanner);
+    const scanNewProductButton = $("btnScanNewProductBarcode");
+    if(scanNewProductButton) scanNewProductButton.addEventListener("click", ()=>openBarcodeScanner("newProduct"));
     $("btnScannerClose").addEventListener("click", closeBarcodeScanner);
     $("scannerBackdrop").addEventListener("click", closeBarcodeScanner);
     $("btnScannerFocus").addEventListener("click", ()=>{
@@ -2453,7 +2468,7 @@ To skasuje też ich pozycje w bazie.`)) return;
     // Register service worker
     if("serviceWorker" in navigator){
       // Cache-bust SW itself to ensure Chrome/iOS fetches the newest worker.
-      navigator.serviceWorker.register("./sw.js?v=20261013c").catch(()=>{});
+      navigator.serviceWorker.register("./sw.js?v=20261013d").catch(()=>{});
     }
   }
 
