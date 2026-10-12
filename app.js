@@ -521,7 +521,14 @@ function ensureInputVisible(el){
       slider.min = String(range.min); slider.max = String(range.max);
       slider.step = String(Number.isFinite(range.step) && range.step > 0 ? range.step : 0.1);
       const step = Number.isFinite(range.step) && range.step > 0 ? range.step : 0.1;
-      const target = Math.max(range.min, Math.min(range.max, 3.0));
+      // Keep the preferred camera zoom on this device only, so each user can
+      // choose their own setting without changing the shared order/catalog.
+      let preferred = 3.0;
+      try{
+        const saved = Number(localStorage.getItem("zamowienia-pro-camera-zoom"));
+        if(Number.isFinite(saved) && saved > 0) preferred = saved;
+      }catch(e){ /* Storage may be unavailable in private browsing. */ }
+      const target = Math.max(range.min, Math.min(range.max, preferred));
       const steppedTarget = Math.max(range.min, Math.min(range.max, range.min + Math.round((target - range.min) / step) * step));
       slider.value = String(Number(steppedTarget.toFixed(3)));
       slider.disabled = false;
@@ -532,7 +539,10 @@ function ensureInputVisible(el){
 
   function updateScannerZoomLabel(){
     const slider = $("scannerZoom");
-    if(!slider.disabled) $("scannerZoomLabel").textContent = `Powiększenie aparatu: ${Number(slider.value).toFixed(1)}×`;
+    if(!slider.disabled){
+      $("scannerZoomLabel").textContent = `Powiększenie aparatu: ${Number(slider.value).toFixed(1)}×`;
+      try{ localStorage.setItem("zamowienia-pro-camera-zoom", String(Number(slider.value))); }catch(e){ /* Keep scanning usable without storage. */ }
+    }
   }
 
   async function applyScannerZoom(){
@@ -2468,7 +2478,7 @@ To skasuje też ich pozycje w bazie.`)) return;
     // Register service worker
     if("serviceWorker" in navigator){
       // Cache-bust SW itself to ensure Chrome/iOS fetches the newest worker.
-      navigator.serviceWorker.register("./sw.js?v=20261013d").catch(()=>{});
+      navigator.serviceWorker.register("./sw.js?v=20261013e").catch(()=>{});
     }
   }
 
