@@ -181,6 +181,10 @@ textarea{
 .item__meta{color:var(--muted); font-size:12px; margin-top:2px}
 
 .item__right{display:flex; gap:8px; align-items:center}
+.qty-wrap{display:flex; flex-direction:column; align-items:stretch; gap:3px; min-width:0}
+.qty-error{display:none; max-width:180px; color:#ffb4b4; font-size:11px; line-height:1.2; text-align:center}
+.qty-error.is-visible{display:block}
+.smallbtn:disabled{opacity:.45; cursor:not-allowed}
 .qty{
   width:110px;
   font-family:var(--mono);

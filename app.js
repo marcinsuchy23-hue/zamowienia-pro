@@ -634,7 +634,10 @@ function ensureInputVisible(el){
           <div class="item__name">${escapeHtml(p.name)}</div>
         </div>
         <div class="item__right">
-          <input class="qty" inputmode="text" placeholder="np. 2kg" />
+          <div class="qty-wrap">
+            <input class="qty" inputmode="text" placeholder="np. 2kg" aria-label="Ilość z jednostką" />
+            <div class="qty-error" aria-live="polite"></div>
+          </div>
           <button class="starbtn" title="Ulubione">☆</button>
           <button class="smallbtn">➕</button>
         </div>
@@ -704,10 +707,28 @@ function ensureInputVisible(el){
         btn.addEventListener("pointerdown", (ev)=>{ ev.stopPropagation(); });
         btn.addEventListener("touchstart", (ev)=>{ ev.stopPropagation(); }, {passive:true});
 
+        const qtyError = row.querySelector(".qty-error");
+        const validateQty = ()=>{
+          const value = norm(qtyEl.value);
+          let message = "";
+          if(value){
+            const parsed = parseQty(value);
+            if(!parsed || parsed.num == null) message = "Wpisz liczbę i jednostkę, np. 200g lub 2kg.";
+            else if(!parsed.unit) message = "Brak jednostki — dopisz np. g, kg, l lub szt.";
+          }
+          qtyError.textContent = message;
+          qtyError.classList.toggle("is-visible", !!message);
+          btn.disabled = !!message;
+          return !message;
+        };
+        qtyEl.addEventListener("input", validateQty);
+        validateQty();
+
         btn.addEventListener("click", (ev) => {
           ev.preventDefault();
           const qty = norm(qtyEl.value);
           if(!qty){ toast("Wpisz ilość"); return; }
+          if(!validateQty()) return;
           lastActionKey = key;
           lastActionFocus = true;
           rememberScroll();
@@ -814,21 +835,32 @@ function ensureInputVisible(el){
   }
 
   function mergeQty(oldQ, addQ){
-    // Convert compatible mass/volume units before adding shared-cart quantities.
-    const a = parseQty(oldQ);
-    const b = parseQty(addQ);
-    if(a && b && a.num != null && b.num != null){
-      const ua = unitInfo(a.unit), ub = unitInfo(b.unit);
-      if(ua && ub && ua.group === ub.group){
-        // Keep the larger of the entered units (kg over dag over g; l over ml).
-        const target = ua.factor >= ub.factor ? ua : ub;
-        const total = (a.num * ua.factor + b.num * ub.factor) / target.factor;
-        return formatNum(total) + target.label;
-      }
-      if((a.unit||"") === (b.unit||"")) return formatNum(a.num + b.num) + (a.unit || "");
-    }
+    // Old versions could already have stored values like "2,2kg + 200g".
+    // Parse every component so the next add repairs and normalizes the full sum.
+    const oldParts = norm(oldQ) ? norm(oldQ).split(/\s*\+\s*/) : [];
+    const addParts = norm(addQ) ? norm(addQ).split(/\s*\+\s*/) : [];
+    const combined = sumQtyParts(oldParts.concat(addParts));
+    if(combined != null) return combined;
     if(!norm(oldQ)) return norm(addQ);
     return norm(oldQ) + " + " + norm(addQ);
+  }
+
+  function sumQtyParts(parts){
+    if(!parts.length) return null;
+    const parsed = parts.map(parseQty);
+    if(parsed.some(x => !x || x.num == null)) return null;
+    const units = parsed.map(x => x.unit || "");
+    const infos = units.map(unitInfo);
+    if(infos.every(Boolean) && infos.every(x => x.group === infos[0].group)){
+      // Keep the largest unit found (kg over dag over g; l over ml).
+      const target = infos.reduce((best, item) => item.factor > best.factor ? item : best);
+      const total = parsed.reduce((sum, item, i) => sum + item.num * infos[i].factor, 0) / target.factor;
+      return formatNum(total) + target.label;
+    }
+    if(units.every(unit => unit === units[0])){
+      return formatNum(parsed.reduce((sum, item) => sum + item.num, 0)) + units[0];
+    }
+    return null;
   }
 
   function unitInfo(unit){
@@ -2157,7 +2189,7 @@ To skasuje też ich pozycje w bazie.`)) return;
     // Register service worker
     if("serviceWorker" in navigator){
       // Cache-bust SW itself to ensure Chrome/iOS fetches the newest worker.
-      navigator.serviceWorker.register("./sw.js?v=20261012a").catch(()=>{});
+      navigator.serviceWorker.register("./sw.js?v=20261012b").catch(()=>{});
     }
   }
 
