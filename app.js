@@ -278,14 +278,17 @@ function ensureInputVisible(el){
       const btnX = liveEl("btnCloseOrder");
       if(btnX) btnX.style.display = (LIVE.orderStatus === "open") ? "" : "none";
       if(LIVE.orderStatus === "closed") toast("Zamówienie jest zamknięte");
-      renderAll();
     });
     // listen items
     LIVE.unsubItems = liveItemsCol().orderBy("updatedAt","desc").onSnapshot((snap)=>{
       const arr = [];
       snap.forEach(doc=>{ const d=doc.data()||{}; arr.push({ id: doc.id, name:d.name, category:d.category||"", qty:d.qty||"", updatedAt: d.updatedAt ? (d.updatedAt.toMillis? d.updatedAt.toMillis(): Date.now()) : Date.now(), by: (d.by && Array.isArray(d.by)) ? d.by.join(", ") : (d.by||"") , __live:true, section: d.section||"" }); });
       state.order.items = arr;
-      renderAll();
+      // Remote basket updates must not rebuild the product list: other users
+      // may be searching or scrolled far down their own list.
+      updateCartCount();
+      renderBasket();
+      updateProductCartMarks();
     });
     liveSetStatus("LIVE: połączono ("+code+")");
   }
@@ -1098,6 +1101,16 @@ function renderExport(){
       badge.textContent = String(n);
       badge.style.display = n ? "inline-flex" : "none";
     }
+  }
+
+  function updateProductCartMarks(){
+    const inCart = new Set((state.order.items||[]).map(it =>
+      ((it.name||"").toLowerCase()) + "||" + ((it.category||"").toLowerCase())
+    ));
+    document.querySelectorAll("#productList .item[data-key]").forEach(row=>{
+      const key = row.getAttribute("data-key") || "";
+      row.classList.toggle("item--inCart", inCart.has(key));
+    });
   }
 
   function renderAll(){
@@ -2195,7 +2208,7 @@ To skasuje też ich pozycje w bazie.`)) return;
     // Register service worker
     if("serviceWorker" in navigator){
       // Cache-bust SW itself to ensure Chrome/iOS fetches the newest worker.
-      navigator.serviceWorker.register("./sw.js?v=20261012c").catch(()=>{});
+      navigator.serviceWorker.register("./sw.js?v=20261012d").catch(()=>{});
     }
   }
 
