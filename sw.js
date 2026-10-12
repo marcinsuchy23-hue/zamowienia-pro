@@ -1,10 +1,10 @@
 // Bump on every deploy: forces iOS/Safari to pick up the new UI
-const CACHE_NAME = "zamowienia-pro-20261012h";
+const CACHE_NAME = "zamowienia-pro-20261012i";
 const ASSETS = [
   "./",
   "./index.html",
-  "./styles.css?v=20261012h",
-  "./app.js?v=20261012h",
+  "./styles.css?v=20261012i",
+  "./app.js?v=20261012i",
   "./manifest.webmanifest",
   "./icon-192.png",
   "./icon-512.png"

@@ -480,18 +480,39 @@ function ensureInputVisible(el){
       const video = $("scannerVideo");
       barcodeScannerActive = true;
       $("scannerStatus").textContent = "Uruchamiam aparat…";
-      const controls = await reader.decodeFromVideoDevice(undefined, video, result=>{
+      const controls = await reader.decodeFromConstraints({
+        video: {
+          facingMode: { ideal: "environment" },
+          width: { ideal: 1920 },
+          height: { ideal: 1080 }
+        }
+      }, video, result=>{
         if(result && barcodeScannerActive) processScannedBarcode(result.getText());
       });
       if(!barcodeScannerActive){ try{ controls.stop(); }catch(e){} return; }
       barcodeScannerControls = controls;
-      $("scannerStatus").textContent = "Ustaw kod kreskowy przed aparatem";
+      requestContinuousCameraFocus(video);
+      $("scannerStatus").textContent = "Ustaw kod przed aparatem. Gdy obraz jest rozmyty, naciśnij „Ponów autofocus”.";
     }catch(e){
       console.warn(e);
       barcodeScriptPromise = null;
       stopBarcodeScanner();
       $("scannerStatus").textContent = "Nie udało się uruchomić aparatu. Sprawdź uprawnienia lub wpisz kod ręcznie.";
     }
+  }
+
+  function requestContinuousCameraFocus(video){
+    try{
+      const track = video?.srcObject?.getVideoTracks?.()[0];
+      if(!track?.applyConstraints) return;
+      const modes = track.getCapabilities?.()?.focusMode;
+      if(Array.isArray(modes) && modes.includes("continuous")){
+        track.applyConstraints({advanced:[{focusMode:"continuous"}]}).catch(()=>{});
+      }else if(!modes){
+        // Some browsers omit getCapabilities(); an ideal request is safe to ignore if unsupported.
+        track.applyConstraints({focusMode:{ideal:"continuous"}}).catch(()=>{});
+      }
+    }catch(e){ /* Autofocus is optional; keep scanning on cameras without this control. */ }
   }
 
   function stopBarcodeScanner(){
@@ -2337,6 +2358,10 @@ function renderExport(){
     const scanButton = $("btnScanBarcode");
     if(scanButton) scanButton.addEventListener("click", openBarcodeScanner);
     $("btnScannerClose").addEventListener("click", closeBarcodeScanner);
+    $("btnScannerFocus").addEventListener("click", ()=>{
+      requestContinuousCameraFocus($("scannerVideo"));
+      $("scannerStatus").textContent = "Poprosiłem aparat o ciągły autofocus. Jeśli obraz nadal jest rozmyty, odsuń telefon od kodu i spróbuj ponownie.";
+    });
     $("scannerBackdrop").addEventListener("click", closeBarcodeScanner);
     $("btnScannerManual").addEventListener("click", ()=>processScannedBarcode($("scannerManualCode").value));
     $("scannerManualCode").addEventListener("keydown", ev=>{
@@ -2505,7 +2530,7 @@ To skasuje też ich pozycje w bazie.`)) return;
     // Register service worker
     if("serviceWorker" in navigator){
       // Cache-bust SW itself to ensure Chrome/iOS fetches the newest worker.
-      navigator.serviceWorker.register("./sw.js?v=20261012h").catch(()=>{});
+      navigator.serviceWorker.register("./sw.js?v=20261012i").catch(()=>{});
     }
   }
 
