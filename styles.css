@@ -206,7 +206,6 @@ textarea{
 .group__title{font-weight:900; margin:10px 0 6px}
 .brow{
   display:flex; align-items:center; justify-content:space-between;
-  flex-wrap:wrap;
   padding:10px 10px;
   border-radius:12px;
   border:1px solid var(--line);
@@ -224,10 +223,7 @@ textarea{
   cursor:pointer;
 }
 .brow__by{color:var(--muted); font-size:12px; margin-top:2px}
-.brow__updated{color:var(--muted); font-size:11px; margin-top:2px}
 .brow__right{display:flex; align-items:center; gap:8px}
-.brow__warning{flex:0 0 100%; color:#ffd27a; font-size:12px; padding:0 2px 2px}
-.qty-step{min-width:38px; min-height:38px; font-size:18px; font-weight:900; line-height:1}
 
 .sheet{position:fixed; inset:0; z-index:50; display:block}
 .sheet__backdrop{position:absolute; inset:0; background:rgba(0,0,0,.55)}
@@ -352,21 +348,6 @@ textarea{
 .order-row3 .field{flex:1 1 auto; min-width:0;}
 .order-row3 input{min-width:0;}
 #filterSearch{width:100%; min-width:0;}
-.search-wrap{position:relative; width:100%; min-width:0}
-.search-wrap #filterSearch{padding-right:82px}
-.search-wrap #btnClearSearch,.search-wrap #btnScanBarcode{position:absolute; top:50%; transform:translateY(-50%); width:32px; height:32px; border:0; border-radius:50%; background:rgba(255,255,255,.12); color:var(--text); font-size:20px; line-height:1; cursor:pointer}
-.search-wrap #btnClearSearch{display:none; right:7px; font-size:22px}
-.search-wrap #btnScanBarcode{right:43px}
-.search-wrap.has-value #btnClearSearch{display:block}
-.scanner-modal{position:fixed; inset:0; z-index:10000; display:flex; align-items:center; justify-content:center; padding:14px}
-.scanner-modal.hidden{display:none}
-.scanner-backdrop{position:absolute; inset:0; background:rgba(0,0,0,.78)}
-.scanner-panel{position:relative; z-index:1; width:min(560px, 96vw); max-height:92vh; overflow:auto; border:1px solid var(--line); border-radius:18px; background:linear-gradient(180deg,#171a27,#10121a); padding:14px; box-shadow:var(--shadow)}
-.scanner-head{display:flex; justify-content:space-between; align-items:center; gap:10px}
-#scannerVideo{display:block; width:100%; max-height:56vh; min-height:220px; object-fit:cover; border-radius:14px; background:#050608}
-.scanner-manual{display:flex; gap:8px; margin:10px 0; align-items:center}
-.scanner-manual input{min-width:0; flex:1}
-@media(max-width:420px){.scanner-manual{flex-wrap:wrap}.scanner-manual button{width:100%}}
 #btnCart{flex:0 0 auto; white-space:nowrap;}
   .order-row3 .field{min-width:0;}
   .order-row3 input{min-width:0; width:100%;}
