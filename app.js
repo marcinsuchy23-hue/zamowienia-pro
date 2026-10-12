@@ -616,9 +616,10 @@ function ensureInputVisible(el){
   function startVoiceSearch(){
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if(!SpeechRecognition){
-      toast("Ta przeglądarka nie udostępnia rozpoznawania mowy. Otwórz aplikację w Safari albo użyj mikrofonu klawiatury.");
+      toast("Ta przeglądarka nie obsługuje rozpoznawania mowy. Spróbuj w Safari na iPhonie albo w Chrome na Androidzie.");
       return;
     }
+    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
     if(voiceSearchRecognition){
       try{ voiceSearchRecognition.stop(); }catch(e){}
       return;
@@ -644,18 +645,24 @@ function ensureInputVisible(el){
       hadError = true;
       clearTimeout(voiceSearchTimeout);
       const messages = {
-        "not-allowed":"Zezwól aplikacji/Safari na mikrofon i rozpoznawanie mowy.",
-        "service-not-allowed":"iPhone nie udostępnił usługi rozpoznawania. Włącz Siri w Ustawieniach i spróbuj ponownie.",
+        "not-allowed":"Zezwól aplikacji lub przeglądarce na użycie mikrofonu.",
+        "service-not-allowed": isIOS
+          ? "iPhone nie udostępnił usługi rozpoznawania mowy. Włącz Siri w Ustawieniach i sprawdź połączenie internetowe."
+          : "Przeglądarka zablokowała usługę rozpoznawania mowy. Sprawdź mikrofon, połączenie internetowe i spróbuj w Chrome.",
         "language-not-supported":"Rozpoznawanie po polsku nie jest dostępne w tej chwili.",
         "network":"Rozpoznawanie mowy wymaga połączenia z internetem. Sprawdź sieć i spróbuj ponownie.",
         "no-speech":"Nie wykryto mowy. Naciśnij mikrofon i powiedz nazwę produktu."
       };
-      toast(messages[event.error] || "Nie udało się rozpoznać mowy. Sprawdź Siri i uprawnienia mikrofonu w iPhonie.");
+      toast(messages[event.error] || (isIOS
+        ? "Nie udało się rozpoznać mowy. Sprawdź Siri oraz uprawnienia mikrofonu i rozpoznawania mowy."
+        : "Nie udało się rozpoznać mowy. Sprawdź uprawnienie mikrofonu i połączenie internetowe."));
     };
     recognition.onend = ()=>{
       clearTimeout(voiceSearchTimeout);
       if(voiceSearchRecognition === recognition) voiceSearchRecognition = null;
-      if(!receivedResult && !hadError) toast("iPhone zakończył nasłuch bez tekstu. Sprawdź Siri i spróbuj ponownie.");
+      if(!receivedResult && !hadError) toast(isIOS
+        ? "Nasłuch zakończył się bez tekstu. Sprawdź Siri i uprawnienia rozpoznawania mowy."
+        : "Nasłuch zakończył się bez tekstu. Sprawdź połączenie internetowe i uprawnienie mikrofonu.");
     };
     try{
       recognition.start();
@@ -665,10 +672,14 @@ function ensureInputVisible(el){
         hadError = true;
         try{ recognition.stop(); }catch(e){}
         voiceSearchRecognition = null;
-        toast("Mikrofon działa, ale iPhone nie zwrócił tekstu. Sprawdź Siri i rozpoznawanie mowy w Ustawieniach.");
+        toast(isIOS
+          ? "Mikrofon działa, ale iPhone nie zwrócił tekstu. Sprawdź Siri i rozpoznawanie mowy w Ustawieniach."
+          : "Mikrofon działa, ale przeglądarka nie zwróciła tekstu. Sprawdź internet i spróbuj w Chrome.");
       }, 12000);
     }
-    catch(e){ clearTimeout(voiceSearchTimeout); voiceSearchRecognition = null; toast("Nie można uruchomić rozpoznawania mowy. Sprawdź uprawnienia mikrofonu i Siri."); }
+    catch(e){ clearTimeout(voiceSearchTimeout); voiceSearchRecognition = null; toast(isIOS
+      ? "Nie można uruchomić rozpoznawania. Sprawdź uprawnienia mikrofonu i Siri."
+      : "Nie można uruchomić rozpoznawania. Sprawdź uprawnienie mikrofonu i spróbuj w Chrome." ); }
   }
 
   function lastOrderTime(){
@@ -2540,7 +2551,7 @@ To skasuje też ich pozycje w bazie.`)) return;
     // Register service worker
     if("serviceWorker" in navigator){
       // Cache-bust SW itself to ensure Chrome/iOS fetches the newest worker.
-      navigator.serviceWorker.register("./sw.js?v=20261013h").catch(()=>{});
+      navigator.serviceWorker.register("./sw.js?v=20261013i").catch(()=>{});
     }
   }
 
