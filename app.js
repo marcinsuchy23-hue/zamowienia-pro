@@ -454,14 +454,52 @@ function ensureInputVisible(el){
     if(window.ZXingBrowser) return Promise.resolve(window.ZXingBrowser);
     if(barcodeScriptPromise) return barcodeScriptPromise;
     barcodeScriptPromise = new Promise((resolve,reject)=>{
-      const script = document.createElement("script");
-      script.src = "https://unpkg.com/@zxing/browser@0.2.1/umd/zxing-browser.min.js";
-      script.async = true;
-      script.onload = ()=>window.ZXingBrowser ? resolve(window.ZXingBrowser) : reject(new Error("Nie można uruchomić czytnika kodów"));
-      script.onerror = ()=>reject(new Error("Brak połączenia z biblioteką skanowania"));
-      document.head.appendChild(script);
+      const urls = [
+        "https://unpkg.com/@zxing/browser@0.2.1/umd/zxing-browser.min.js",
+        "https://cdn.jsdelivr.net/npm/@zxing/browser@0.2.1/umd/zxing-browser.min.js"
+      ];
+      const tryLoad = index=>{
+        if(index >= urls.length){ reject(new Error("Brak połączenia z biblioteką skanowania")); return; }
+        const script = document.createElement("script");
+        script.src = urls[index];
+        script.async = true;
+        script.onload = ()=>window.ZXingBrowser ? resolve(window.ZXingBrowser) : (script.remove(), tryLoad(index+1));
+        script.onerror = ()=>{ script.remove(); tryLoad(index+1); };
+        document.head.appendChild(script);
+      };
+      tryLoad(0);
     });
     return barcodeScriptPromise;
+  }
+
+  async function startBarcodeCamera(reader, video, onResult){
+    const options = [
+      {video:{facingMode:{ideal:"environment"},width:{ideal:2560},height:{ideal:1440}}},
+      {video:{facingMode:{ideal:"environment"}}},
+      {video:true}
+    ];
+    let lastError;
+    for(const constraints of options){
+      try{ return await reader.decodeFromConstraints(constraints, video, onResult); }
+      catch(e){
+        lastError = e;
+        if(["NotAllowedError","PermissionDeniedError","SecurityError","NotReadableError"].includes(e?.name)) throw e;
+      }
+    }
+    throw lastError || new Error("Nie udało się otworzyć aparatu");
+  }
+
+  function cameraErrorMessage(error){
+    if(["NotAllowedError","PermissionDeniedError","SecurityError"].includes(error?.name)){
+      return "Safari zablokował aparat. W ustawieniach iPhone’a zezwól Safari na aparat, zamknij tę aplikację i otwórz ją ponownie.";
+    }
+    if(["NotReadableError","AbortError"].includes(error?.name)){
+      return "Aparat jest zajęty albo został zatrzymany przez iOS. Zamknij inne aplikacje używające kamery i spróbuj ponownie.";
+    }
+    if(["NotFoundError","OverconstrainedError"].includes(error?.name)){
+      return "Safari nie znalazł dostępnej kamery. Spróbuj uruchomić skaner w Safari w zwykłej karcie.";
+    }
+    return "Nie udało się uruchomić aparatu. Spróbuj ponownie lub wpisz kod ręcznie.";
   }
 
   async function openBarcodeScanner(){
@@ -480,13 +518,7 @@ function ensureInputVisible(el){
       const video = $("scannerVideo");
       barcodeScannerActive = true;
       $("scannerStatus").textContent = "Uruchamiam aparat…";
-      const controls = await reader.decodeFromConstraints({
-        video: {
-          facingMode: { ideal: "environment" },
-          width: { ideal: 2560 },
-          height: { ideal: 1440 }
-        }
-      }, video, result=>{
+      const controls = await startBarcodeCamera(reader, video, result=>{
         if(result && barcodeScannerActive) processScannedBarcode(result.getText());
       });
       if(!barcodeScannerActive){ try{ controls.stop(); }catch(e){} return; }
@@ -498,7 +530,7 @@ function ensureInputVisible(el){
       console.warn(e);
       barcodeScriptPromise = null;
       stopBarcodeScanner();
-      $("scannerStatus").textContent = "Nie udało się uruchomić aparatu. Sprawdź uprawnienia lub wpisz kod ręcznie.";
+      $("scannerStatus").textContent = cameraErrorMessage(e);
     }
   }
 
@@ -2575,7 +2607,7 @@ To skasuje też ich pozycje w bazie.`)) return;
     // Register service worker
     if("serviceWorker" in navigator){
       // Cache-bust SW itself to ensure Chrome/iOS fetches the newest worker.
-      navigator.serviceWorker.register("./sw.js?v=20261012j").catch(()=>{});
+      navigator.serviceWorker.register("./sw.js?v=20261012k").catch(()=>{});
     }
   }
 
