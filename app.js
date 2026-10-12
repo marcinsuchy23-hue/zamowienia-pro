@@ -361,6 +361,7 @@ function ensureInputVisible(el){
   let barcodeScannerActive = false;
   let barcodeScanTarget = "order";
   let voiceSearchRecognition = null;
+  let voiceSearchTimeout = null;
 
   const state = {
     settings: { userName: "", restaurant: "Zamówienia PRO", sections: DEFAULT_SECTIONS.slice(), uiScale: 1 },
@@ -615,21 +616,17 @@ function ensureInputVisible(el){
   function startVoiceSearch(){
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if(!SpeechRecognition){
-      focusSearchForKeyboardDictation();
-      return;
-    }
-    // iOS home-screen web apps do not expose browser speech recognition
-    // consistently. Let iOS keyboard dictation handle voice input there.
-    if(navigator.standalone === true){
-      focusSearchForKeyboardDictation();
+      toast("Ta przeglądarka nie udostępnia rozpoznawania mowy. Otwórz aplikację w Safari albo użyj mikrofonu klawiatury.");
       return;
     }
     if(voiceSearchRecognition){
-      try{ voiceSearchRecognition.abort(); }catch(e){}
-      voiceSearchRecognition = null;
+      try{ voiceSearchRecognition.stop(); }catch(e){}
+      return;
     }
     const recognition = new SpeechRecognition();
     voiceSearchRecognition = recognition;
+    let receivedResult = false;
+    let hadError = false;
     recognition.lang = "pl-PL";
     recognition.continuous = false;
     recognition.interimResults = false;
@@ -637,26 +634,41 @@ function ensureInputVisible(el){
     recognition.onresult = event=>{
       const phrase = norm(event.results?.[0]?.[0]?.transcript || "");
       if(!phrase){ toast("Nie rozpoznano nazwy produktu"); return; }
+      receivedResult = true;
+      clearTimeout(voiceSearchTimeout);
       $("filterSearch").value = phrase;
       renderProductList();
       toast(`Szukam: ${phrase}`);
     };
     recognition.onerror = event=>{
-      if(["not-allowed","service-not-allowed","language-not-supported","network"].includes(event.error)){
-        focusSearchForKeyboardDictation();
-        return;
-      }
-      toast(event.error === "no-speech" ? "Nie wykryto mowy. Spróbuj jeszcze raz." : "Nie udało się rozpoznać mowy. Spróbuj ponownie.");
+      hadError = true;
+      clearTimeout(voiceSearchTimeout);
+      const messages = {
+        "not-allowed":"Zezwól aplikacji/Safari na mikrofon i rozpoznawanie mowy.",
+        "service-not-allowed":"iPhone nie udostępnił usługi rozpoznawania. Włącz Siri w Ustawieniach i spróbuj ponownie.",
+        "language-not-supported":"Rozpoznawanie po polsku nie jest dostępne w tej chwili.",
+        "network":"Rozpoznawanie mowy wymaga połączenia z internetem. Sprawdź sieć i spróbuj ponownie.",
+        "no-speech":"Nie wykryto mowy. Naciśnij mikrofon i powiedz nazwę produktu."
+      };
+      toast(messages[event.error] || "Nie udało się rozpoznać mowy. Sprawdź Siri i uprawnienia mikrofonu w iPhonie.");
     };
-    recognition.onend = ()=>{ if(voiceSearchRecognition === recognition) voiceSearchRecognition = null; };
-    try{ recognition.start(); toast("Słucham… powiedz nazwę produktu"); }
-    catch(e){ voiceSearchRecognition = null; toast("Nie można teraz uruchomić mikrofonu. Spróbuj ponownie."); }
-  }
-
-  function focusSearchForKeyboardDictation(){
-    const input = $("filterSearch");
-    input.focus();
-    toast("Użyj mikrofonu 🎙️ na klawiaturze telefonu, aby podyktować nazwę produktu.");
+    recognition.onend = ()=>{
+      clearTimeout(voiceSearchTimeout);
+      if(voiceSearchRecognition === recognition) voiceSearchRecognition = null;
+      if(!receivedResult && !hadError) toast("iPhone zakończył nasłuch bez tekstu. Sprawdź Siri i spróbuj ponownie.");
+    };
+    try{
+      recognition.start();
+      toast("Słucham… powiedz nazwę produktu");
+      voiceSearchTimeout = setTimeout(()=>{
+        if(voiceSearchRecognition !== recognition) return;
+        hadError = true;
+        try{ recognition.stop(); }catch(e){}
+        voiceSearchRecognition = null;
+        toast("Mikrofon działa, ale iPhone nie zwrócił tekstu. Sprawdź Siri i rozpoznawanie mowy w Ustawieniach.");
+      }, 12000);
+    }
+    catch(e){ clearTimeout(voiceSearchTimeout); voiceSearchRecognition = null; toast("Nie można uruchomić rozpoznawania mowy. Sprawdź uprawnienia mikrofonu i Siri."); }
   }
 
   function lastOrderTime(){
@@ -2528,7 +2540,7 @@ To skasuje też ich pozycje w bazie.`)) return;
     // Register service worker
     if("serviceWorker" in navigator){
       // Cache-bust SW itself to ensure Chrome/iOS fetches the newest worker.
-      navigator.serviceWorker.register("./sw.js?v=20261013g").catch(()=>{});
+      navigator.serviceWorker.register("./sw.js?v=20261013h").catch(()=>{});
     }
   }
 
