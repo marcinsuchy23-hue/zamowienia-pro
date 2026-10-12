@@ -8,7 +8,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon-192.png">
   <!-- cache-bust for GitHub Pages / iOS Safari (updates show instantly) -->
-  <link rel="stylesheet" href="styles.css?v=20261012d" />
+  <link rel="stylesheet" href="styles.css?v=20261012l" />
 </head>
 <body>
   <div id="uiRoot">
@@ -54,7 +54,10 @@
         <div class="row row--gap order-row3" style="align-items:flex-end">
           <div class="field">
             <label>Szukaj</label>
-            <input id="filterSearch" placeholder="np. ogórek" autocomplete="off" />
+            <div class="search-wrap">
+              <input id="filterSearch" placeholder="np. ogórek" autocomplete="off" />
+              <button id="btnScanBarcode" type="button" aria-label="Skanuj kod kreskowy" title="Skanuj kod kreskowy">📷</button>
+            </div>
           </div>
 </div>
       </div>
@@ -253,9 +256,28 @@
     </div>
   </div>
 
+  <div class="scanner-modal hidden" id="scannerModal" role="dialog" aria-modal="true" aria-labelledby="scannerTitle">
+    <div class="scanner-backdrop" id="scannerBackdrop"></div>
+    <div class="scanner-panel">
+      <div class="scanner-head">
+        <strong id="scannerTitle">Skanuj kod kreskowy</strong>
+        <button class="btn" id="btnScannerClose" type="button">Zamknij</button>
+      </div>
+      <p class="small" id="scannerStatus" aria-live="polite">Uruchamiam aparat…</p>
+      <video id="scannerVideo" autoplay playsinline muted></video>
+      <button class="btn" id="btnScannerFocus" type="button">🔎 Ponów autofocus</button>
+      <label class="scanner-zoom" for="scannerZoom"><span id="scannerZoomLabel">Powiększenie aparatu niedostępne</span><input id="scannerZoom" type="range" min="1" max="1" step="0.1" value="1" disabled /><span class="small">Powiększaj suwakiem, nie całą stronę — rozmiar aplikacji się nie zmieni.</span></label>
+      <div class="scanner-manual">
+        <input id="scannerManualCode" inputmode="numeric" placeholder="Możesz też wpisać kod ręcznie" />
+        <button class="btn primary" id="btnScannerManual" type="button">Szukaj kodu</button>
+      </div>
+      <div class="small">Kod zostanie dopasowany do produktu z bazy. Ilość wpiszesz po jego znalezieniu.</div>
+    </div>
+  </div>
+
   <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore-compat.js"></script>
-<script src="firebase-config.js?v=20261012d"></script>
-<script src="app.js?v=20261012d"></script>
+<script src="firebase-config.js?v=20261012l"></script>
+<script src="app.js?v=20261012l"></script>
 </body>
 </html>

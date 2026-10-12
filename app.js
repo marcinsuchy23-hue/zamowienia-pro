@@ -356,6 +356,9 @@ function ensureInputVisible(el){
   let lastActionKey = "";
   let lastActionFocus = false;
   let focusSearchAfterAdd = false;
+  let barcodeScriptPromise = null;
+  let barcodeScannerControls = null;
+  let barcodeScannerActive = false;
 
   const state = {
     settings: { userName: "", restaurant: "Zamówienia PRO", sections: DEFAULT_SECTIONS.slice(), uiScale: 1 },
@@ -408,6 +411,183 @@ function ensureInputVisible(el){
     // Use user's locale; include weekday.
     const opts = { weekday:"long", year:"numeric", month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit" };
     return d.toLocaleString("pl-PL", opts);
+  }
+
+  function loadBarcodeLibrary(){
+    if(window.ZXingBrowser) return Promise.resolve(window.ZXingBrowser);
+    if(barcodeScriptPromise) return barcodeScriptPromise;
+    barcodeScriptPromise = new Promise((resolve,reject)=>{
+      const urls = [
+        "https://unpkg.com/@zxing/browser@0.2.1/umd/zxing-browser.min.js",
+        "https://cdn.jsdelivr.net/npm/@zxing/browser@0.2.1/umd/zxing-browser.min.js"
+      ];
+      const tryLoad = index=>{
+        if(index >= urls.length){ reject(new Error("Brak połączenia z biblioteką skanowania")); return; }
+        const script = document.createElement("script");
+        script.src = urls[index];
+        script.async = true;
+        script.onload = ()=>window.ZXingBrowser ? resolve(window.ZXingBrowser) : (script.remove(), tryLoad(index+1));
+        script.onerror = ()=>{ script.remove(); tryLoad(index+1); };
+        document.head.appendChild(script);
+      };
+      tryLoad(0);
+    });
+    return barcodeScriptPromise;
+  }
+
+  async function startBarcodeCamera(reader, video, onResult){
+    const options = [
+      {video:{facingMode:{ideal:"environment"},width:{ideal:2560},height:{ideal:1440}}},
+      {video:{facingMode:{ideal:"environment"}}},
+      {video:true}
+    ];
+    let lastError;
+    for(const constraints of options){
+      try{ return await reader.decodeFromConstraints(constraints, video, onResult); }
+      catch(e){
+        lastError = e;
+        if(["NotAllowedError","PermissionDeniedError","SecurityError","NotReadableError"].includes(e?.name)) throw e;
+      }
+    }
+    throw lastError || new Error("Nie udało się otworzyć aparatu");
+  }
+
+  function cameraErrorMessage(error){
+    if(["NotAllowedError","PermissionDeniedError","SecurityError"].includes(error?.name)){
+      return "Przeglądarka zablokowała aparat. Zezwól na aparat w uprawnieniach tej witryny lub Safari w ustawieniach iPhone’a, zamknij aplikację i otwórz ją ponownie.";
+    }
+    if(String(error?.message||"").includes("biblioteką skanowania")) return "Nie udało się pobrać czytnika kodów. Sprawdź internet i spróbuj ponownie albo wpisz kod ręcznie.";
+    if(["NotReadableError","AbortError"].includes(error?.name)){
+      return "Aparat jest zajęty albo został zatrzymany przez iOS. Zamknij inne aplikacje używające kamery i spróbuj ponownie.";
+    }
+    if(["NotFoundError","OverconstrainedError"].includes(error?.name)){
+      return "Safari nie znalazł dostępnej kamery. Spróbuj uruchomić skaner w Safari w zwykłej karcie.";
+    }
+    return "Nie udało się uruchomić aparatu. Spróbuj ponownie lub wpisz kod ręcznie.";
+  }
+
+  async function openBarcodeScanner(){
+    const modal = $("scannerModal");
+    modal.classList.remove("hidden");
+    $("scannerStatus").textContent = "Proszę zezwolić na dostęp do aparatu…";
+    $("scannerManualCode").value = "";
+    if(!window.isSecureContext || !navigator.mediaDevices?.getUserMedia){
+      $("scannerStatus").textContent = "Aparat wymaga bezpiecznego połączenia HTTPS. Możesz wpisać kod ręcznie poniżej.";
+      return;
+    }
+    try{
+      const ZXing = await loadBarcodeLibrary();
+      if(!modal.isConnected || modal.classList.contains("hidden")) return;
+      const reader = new ZXing.BrowserMultiFormatReader();
+      const video = $("scannerVideo");
+      barcodeScannerActive = true;
+      $("scannerStatus").textContent = "Uruchamiam aparat…";
+      const controls = await startBarcodeCamera(reader, video, result=>{
+        if(result && barcodeScannerActive) processScannedBarcode(result.getText());
+      });
+      if(!barcodeScannerActive){ try{ controls.stop(); }catch(e){} return; }
+      barcodeScannerControls = controls;
+      requestContinuousCameraFocus(video);
+      configureScannerZoom(video);
+      $("scannerStatus").textContent = "Mały kod? Odsuń telefon, ustaw ostrość i użyj suwaka powiększenia.";
+    }catch(e){
+      console.warn(e);
+      barcodeScriptPromise = null;
+      stopBarcodeScanner();
+      $("scannerStatus").textContent = cameraErrorMessage(e);
+    }
+  }
+
+  function requestContinuousCameraFocus(video){
+    try{
+      const track = video?.srcObject?.getVideoTracks?.()[0];
+      if(!track?.applyConstraints) return;
+      const modes = track.getCapabilities?.()?.focusMode;
+      if(Array.isArray(modes) && modes.includes("continuous")) track.applyConstraints({advanced:[{focusMode:"continuous"}]}).catch(()=>{});
+      else if(!modes) track.applyConstraints({focusMode:{ideal:"continuous"}}).catch(()=>{});
+    }catch(e){ /* Autofocus is optional. */ }
+  }
+
+  function configureScannerZoom(video){
+    const slider = $("scannerZoom"), label = $("scannerZoomLabel");
+    const track = video?.srcObject?.getVideoTracks?.()[0];
+    slider.disabled = true;
+    label.textContent = "Powiększenie aparatu niedostępne";
+    try{
+      const range = track?.getCapabilities?.()?.zoom;
+      if(!range || !Number.isFinite(range.min) || !Number.isFinite(range.max) || range.max <= range.min) return;
+      slider.min = String(range.min); slider.max = String(range.max);
+      slider.step = String(Number.isFinite(range.step) && range.step > 0 ? range.step : 0.1);
+      const current = track.getSettings?.()?.zoom;
+      slider.value = String(Number.isFinite(current) ? current : range.min);
+      slider.disabled = false;
+      label.textContent = `Powiększenie aparatu: ${Number(slider.value).toFixed(1)}×`;
+    }catch(e){ /* Zoom is optional. */ }
+  }
+
+  function updateScannerZoomLabel(){
+    const slider = $("scannerZoom");
+    if(!slider.disabled) $("scannerZoomLabel").textContent = `Powiększenie aparatu: ${Number(slider.value).toFixed(1)}×`;
+  }
+
+  async function applyScannerZoom(){
+    const slider = $("scannerZoom");
+    if(slider.disabled) return;
+    const track = $("scannerVideo")?.srcObject?.getVideoTracks?.()[0];
+    if(!track?.applyConstraints) return;
+    try{ await track.applyConstraints({advanced:[{zoom:Number(slider.value)}]}); updateScannerZoomLabel(); }
+    catch(e){ $("scannerZoomLabel").textContent = "Nie udało się zmienić powiększenia aparatu"; }
+  }
+
+  function stopBarcodeScanner(){
+    barcodeScannerActive = false;
+    if(barcodeScannerControls){ try{ barcodeScannerControls.stop(); }catch(e){} }
+    barcodeScannerControls = null;
+    const video = $("scannerVideo");
+    if(video){
+      try{ video.pause(); }catch(e){}
+      if(video.srcObject){ try{ video.srcObject.getTracks().forEach(track=>track.stop()); }catch(e){} video.srcObject = null; }
+    }
+    const slider = $("scannerZoom");
+    if(slider) slider.disabled = true;
+    const label = $("scannerZoomLabel");
+    if(label) label.textContent = "Powiększenie aparatu niedostępne";
+  }
+
+  function closeBarcodeScanner(){
+    stopBarcodeScanner();
+    const modal = $("scannerModal");
+    if(modal) modal.classList.add("hidden");
+  }
+
+  function processScannedBarcode(value){
+    const code = norm(value).replace(/\s+/g, "");
+    if(!code){ toast("Nie odczytano kodu"); return; }
+    closeBarcodeScanner();
+    let product = state.catalog.find(p=>norm(p.barcode).replace(/\s+/g, "") === code);
+    if(!product){
+      const productName = prompt(`Nie ma jeszcze produktu przypisanego do kodu ${code}.\nWpisz dokładną nazwę produktu z bazy, aby zapisać to przypisanie:`);
+      if(productName === null) return;
+      product = state.catalog.find(p=>norm(p.name).toLocaleLowerCase("pl-PL") === norm(productName).toLocaleLowerCase("pl-PL"));
+      if(!product){ toast("Nie znaleziono produktu o takiej nazwie"); return; }
+      product.barcode = code;
+      save();
+      renderCatalog();
+      toast(`Kod przypisany do: ${product.name}`);
+    }
+    const search = $("filterSearch");
+    $("filterSection").value = "__ALL__";
+    renderFilters();
+    $("filterCategory").value = "__ALL__";
+    state.ui.favMode = false;
+    state.ui.onlyInCart = false;
+    search.value = product.name;
+    renderProductList();
+    setTimeout(()=>{
+      const qty = document.querySelector("#productList .item input.qty");
+      if(qty){ try{ qty.focus({preventScroll:true}); }catch(e){ qty.focus(); } ensureInputVisible(qty); }
+    }, 40);
+    toast(`Znaleziono: ${product.name} — wpisz ilość`);
   }
 
   function lastOrderTime(){
@@ -1003,6 +1183,7 @@ g.appendChild(r);
         <div class="item__left">
           <div class="item__name">${escapeHtml(p.name)}</div>
           <div class="item__meta">${escapeHtml(capFirst(p.category) || "Inne")}</div>
+          ${p.barcode ? `<div class="item__meta">Kod: ${escapeHtml(p.barcode)}</div>` : ""}
         </div>
         <div class="item__right">
           <button class="smallbtn danger" title="Usuń">🗑</button>
@@ -2078,6 +2259,23 @@ function renderExport(){
     $("btnGoExport").addEventListener("click", openExport);
     const btnQuick = document.getElementById("btnQuickRefresh");
     if(btnQuick) btnQuick.addEventListener("click", refreshCatalogQuick);
+    const scanButton = $("btnScanBarcode");
+    if(scanButton) scanButton.addEventListener("click", openBarcodeScanner);
+    $("btnScannerClose").addEventListener("click", closeBarcodeScanner);
+    $("scannerBackdrop").addEventListener("click", closeBarcodeScanner);
+    $("btnScannerFocus").addEventListener("click", ()=>{
+      requestContinuousCameraFocus($("scannerVideo"));
+      $("scannerStatus").textContent = "Ponowiono prośbę o autofocus. Przy małym kodzie odsuń telefon i zwiększ powiększenie suwakiem.";
+    });
+    $("scannerZoom").addEventListener("input", updateScannerZoomLabel);
+    $("scannerZoom").addEventListener("change", applyScannerZoom);
+    $("btnScannerManual").addEventListener("click", ()=>processScannedBarcode($("scannerManualCode").value));
+    $("scannerManualCode").addEventListener("keydown", ev=>{
+      if(ev.key === "Enter"){ ev.preventDefault(); processScannedBarcode(ev.currentTarget.value); }
+    });
+    document.addEventListener("keydown", ev=>{
+      if(ev.key === "Escape" && !$("scannerModal").classList.contains("hidden")) closeBarcodeScanner();
+    });
     
     if(document.getElementById("btnNewOrder2")) $("btnNewOrder2").addEventListener("click", newOrder);
     if(document.getElementById("btnClearCart")) $("btnClearCart").addEventListener("click", () => { if(confirm("Wyczyścić koszyk?")){ state.order.items=[]; save(); renderAll(); toast("Koszyk wyczyszczony"); } });
@@ -2208,7 +2406,7 @@ To skasuje też ich pozycje w bazie.`)) return;
     // Register service worker
     if("serviceWorker" in navigator){
       // Cache-bust SW itself to ensure Chrome/iOS fetches the newest worker.
-      navigator.serviceWorker.register("./sw.js?v=20261012d").catch(()=>{});
+      navigator.serviceWorker.register("./sw.js?v=20261012l").catch(()=>{});
     }
   }
 
@@ -2225,8 +2423,12 @@ To skasuje też ich pozycje w bazie.`)) return;
     const idxName = header.indexOf("name");
     const idxCategory = header.indexOf("category");
     const idxSections = header.indexOf("sections");
+    const idxBarcode = header.indexOf("barcode");
     if(idxName === -1 || idxCategory === -1) throw new Error("CSV musi mieć kolumny name i category");
 
+    const oldBarcodeByProduct = new Map((state.catalog||[]).map(p=>[
+      (norm(p.name).toLocaleLowerCase("pl-PL")+"||"+norm(p.category).toLocaleLowerCase("pl-PL")), p.barcode||""
+    ]));
     const out = [];
     for(let i=1;i<rows.length;i++){
       const r = rows[i];
@@ -2234,7 +2436,9 @@ To skasuje też ich pozycje w bazie.`)) return;
       const category = capFirst(norm(r[idxCategory] || ""));
       if(!name || !category) continue;
       const sections = idxSections >= 0 ? norm(r[idxSections] || "") : "";
-      out.push({ id: uid(), name, category, sections, createdAt: Date.now() });
+      const productKey = norm(name).toLocaleLowerCase("pl-PL")+"||"+norm(category).toLocaleLowerCase("pl-PL");
+      const barcode = idxBarcode >= 0 ? (norm(r[idxBarcode]||"").replace(/\s+/g, "") || oldBarcodeByProduct.get(productKey) || "") : (oldBarcodeByProduct.get(productKey) || "");
+      out.push({ id: uid(), name, category, sections, barcode, createdAt: Date.now() });
     }
     state.catalog = out;
     if(saveUrl){
@@ -2250,7 +2454,7 @@ To skasuje też ich pozycje w bazie.`)) return;
       const url = prompt(
         "Wklej link CSV z Google Sheets (Opublikowane do internetu)\n" +
         "Przykład: .../pub?output=csv\n\n" +
-        "Kolumny: name, category, sections",
+        "Kolumny: name, category, sections; opcjonalnie barcode",
         state.settings.catalogCsvUrl || ""
       );
       if(!url) return;
@@ -2278,12 +2482,13 @@ To skasuje też ich pozycje w bazie.`)) return;
   }
 
   function exportCatalogToCSV(){
-    const lines = ["name,category,sections"]; // sections = ';' separated
+    const lines = ["name,category,sections,barcode"]; // sections = ';' separated
     for(const p of (state.catalog || [])){
       const name = csvEsc(p.name);
       const cat = csvEsc(p.category);
       const sec = csvEsc((p.sections || []).join(";"));
-      lines.push([name,cat,sec].join(","));
+      const barcode = csvEsc(p.barcode || "");
+      lines.push([name,cat,sec,barcode].join(","));
     }
     const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
     const a = document.createElement("a");

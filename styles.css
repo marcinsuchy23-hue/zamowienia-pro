@@ -348,6 +348,9 @@ textarea{
 .order-row3 .field{flex:1 1 auto; min-width:0;}
 .order-row3 input{min-width:0;}
 #filterSearch{width:100%; min-width:0;}
+.search-wrap{position:relative; width:100%; min-width:0}
+.search-wrap #filterSearch{padding-right:52px}
+.search-wrap #btnScanBarcode{position:absolute; top:50%; right:7px; transform:translateY(-50%); width:34px; height:34px; border:0; border-radius:50%; background:rgba(255,255,255,.12); color:var(--text); font-size:20px; line-height:1; cursor:pointer}
 #btnCart{flex:0 0 auto; white-space:nowrap;}
   .order-row3 .field{min-width:0;}
   .order-row3 input{min-width:0; width:100%;}
@@ -384,6 +387,18 @@ body{ overscroll-behavior-y: none; }
 .modal__title{font-weight:900; letter-spacing:.3px;}
 
 .orders-list{display:flex; flex-direction:column; gap:10px;}
+.scanner-modal{position:fixed; inset:0; z-index:10000; display:flex; align-items:center; justify-content:center; padding:14px}
+.scanner-modal.hidden{display:none}
+.scanner-backdrop{position:absolute; inset:0; background:rgba(0,0,0,.78)}
+.scanner-panel{position:relative; z-index:1; width:min(560px,96vw); max-height:92vh; overflow:auto; border:1px solid var(--line); border-radius:18px; background:linear-gradient(180deg,#171a27,#10121a); padding:14px; box-shadow:var(--shadow)}
+.scanner-head{display:flex; justify-content:space-between; align-items:center; gap:10px}
+#scannerVideo{display:block; width:100%; max-height:48vh; min-height:200px; object-fit:contain; border-radius:14px; background:#050608}
+.scanner-zoom{display:block; margin:10px 0; font-size:14px}
+.scanner-zoom input{display:block; width:100%; margin-top:5px; accent-color:#8b5cf6}
+.scanner-zoom input:disabled{opacity:.45}
+.scanner-manual{display:flex; gap:8px; margin:10px 0; align-items:center}
+.scanner-manual input{min-width:0; flex:1}
+@media(max-width:420px){.scanner-manual{flex-wrap:wrap}.scanner-manual button{width:100%}}
 .order-item{display:flex; align-items:flex-start; justify-content:space-between; gap:10px; padding:12px; border-radius:14px; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.08);}
 .order-item__meta{display:flex; flex-direction:column; gap:4px; min-width:0;}
 .order-item__title{font-weight:900; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
