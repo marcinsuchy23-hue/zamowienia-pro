@@ -615,7 +615,13 @@ function ensureInputVisible(el){
   function startVoiceSearch(){
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if(!SpeechRecognition){
-      toast("Ta przeglądarka nie obsługuje wyszukiwania głosowego. Możesz wpisać nazwę ręcznie.");
+      focusSearchForKeyboardDictation();
+      return;
+    }
+    // iOS home-screen web apps do not expose browser speech recognition
+    // consistently. Let iOS keyboard dictation handle voice input there.
+    if(navigator.standalone === true){
+      focusSearchForKeyboardDictation();
       return;
     }
     if(voiceSearchRecognition){
@@ -636,15 +642,21 @@ function ensureInputVisible(el){
       toast(`Szukam: ${phrase}`);
     };
     recognition.onerror = event=>{
-      const message = event.error === "not-allowed" || event.error === "service-not-allowed"
-        ? "Zezwól przeglądarce na używanie mikrofonu."
-        : event.error === "no-speech" ? "Nie wykryto mowy. Spróbuj jeszcze raz."
-        : "Nie udało się rozpoznać mowy. Spróbuj ponownie albo wpisz nazwę ręcznie.";
-      toast(message);
+      if(["not-allowed","service-not-allowed","language-not-supported","network"].includes(event.error)){
+        focusSearchForKeyboardDictation();
+        return;
+      }
+      toast(event.error === "no-speech" ? "Nie wykryto mowy. Spróbuj jeszcze raz." : "Nie udało się rozpoznać mowy. Spróbuj ponownie.");
     };
     recognition.onend = ()=>{ if(voiceSearchRecognition === recognition) voiceSearchRecognition = null; };
     try{ recognition.start(); toast("Słucham… powiedz nazwę produktu"); }
     catch(e){ voiceSearchRecognition = null; toast("Nie można teraz uruchomić mikrofonu. Spróbuj ponownie."); }
+  }
+
+  function focusSearchForKeyboardDictation(){
+    const input = $("filterSearch");
+    input.focus();
+    toast("Użyj mikrofonu 🎙️ na klawiaturze telefonu, aby podyktować nazwę produktu.");
   }
 
   function lastOrderTime(){
@@ -2516,7 +2528,7 @@ To skasuje też ich pozycje w bazie.`)) return;
     // Register service worker
     if("serviceWorker" in navigator){
       // Cache-bust SW itself to ensure Chrome/iOS fetches the newest worker.
-      navigator.serviceWorker.register("./sw.js?v=20261013f").catch(()=>{});
+      navigator.serviceWorker.register("./sw.js?v=20261013g").catch(()=>{});
     }
   }
 
