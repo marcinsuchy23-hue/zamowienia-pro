@@ -51,6 +51,7 @@ function ensureInputVisible(el){
 }
 
   const LS_KEY = "zamowienia_pro_v1";
+  const LS_VIEW_KEY = "zamowienia_pro_view_v1";
   const DEFAULT_CATS = ["Warzywa","Mięso","Nabiał","Mrożonki","Suchy magazyn","Przyprawy","Owoce","Ryby","Inne"];
   const DEFAULT_SECTIONS = ["Grill","Palniki","Zimna","Wydawka"];
   const TZ = "Europe/Warsaw";
@@ -282,7 +283,7 @@ function ensureInputVisible(el){
     // listen items
     LIVE.unsubItems = liveItemsCol().orderBy("updatedAt","desc").onSnapshot((snap)=>{
       const arr = [];
-      snap.forEach(doc=>{ const d=doc.data()||{}; arr.push({ id: doc.id, name:d.name, category:d.category||"", qty:d.qty||"", updatedAt: d.updatedAt ? (d.updatedAt.toMillis? d.updatedAt.toMillis(): Date.now()) : Date.now(), by: (d.by && Array.isArray(d.by)) ? d.by.join(", ") : (d.by||"") , __live:true, section: d.section||"" }); });
+      snap.forEach(doc=>{ const d=doc.data()||{}; const updatedAt = d.updatedAt ? (d.updatedAt.toMillis? d.updatedAt.toMillis(): Date.now()) : Date.now(); const createdAt = d.createdAt ? (d.createdAt.toMillis? d.createdAt.toMillis(): Date.now()) : updatedAt; arr.push({ id: doc.id, name:d.name, category:d.category||"", qty:d.qty||"", createdAt, updatedAt, by: (d.by && Array.isArray(d.by)) ? d.by.join(", ") : (d.by||"") , __live:true, section: d.section||"" }); });
       state.order.items = arr;
       // Remote basket updates must not rebuild the product list: other users
       // may be searching or scrolled far down their own list.
@@ -321,14 +322,14 @@ function ensureInputVisible(el){
     await LIVE.db.runTransaction(async (tx)=>{
       const snap = await tx.get(ref);
       if(!snap.exists){
-        tx.set(ref, { name: p.name, category: p.category||"", section, qty, by: [by], updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+        tx.set(ref, { name: p.name, category: p.category||"", section, qty, by: [by], createdAt: firebase.firestore.FieldValue.serverTimestamp(), updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
       } else {
         const d = snap.data()||{};
         const oldQty = d.qty || "";
         const newQty = mergeQty(oldQty, qty);
         const byArr = Array.isArray(d.by) ? d.by.slice() : (d.by ? [d.by] : []);
         if(by && !byArr.includes(by)) byArr.push(by);
-        tx.set(ref, { name: d.name||p.name, category: d.category||p.category||"", section: d.section||section, qty: newQty, by: byArr, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, {merge:true});
+        tx.set(ref, { name: d.name||p.name, category: d.category||p.category||"", section: d.section||section, qty: newQty, by: byArr, createdAt: d.createdAt||d.updatedAt||firebase.firestore.FieldValue.serverTimestamp(), updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, {merge:true});
       }
     });
     try{ await liveOrderRef(LIVE.orderId).set({ updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, {merge:true}); }catch(e){}
@@ -347,6 +348,36 @@ function ensureInputVisible(el){
     await liveItemsCol().doc(it.id).delete();
     try{ await liveOrderRef(LIVE.orderId).set({ updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, {merge:true}); }catch(e){}
     liveTouchAlias();
+  }
+
+  async function liveRestoreItem(it){
+    const ref = liveItemsCol().doc(it.id);
+    const by = Array.isArray(it.by) ? it.by : norm(it.by).split(/,\s*/).filter(Boolean);
+    await LIVE.db.runTransaction(async tx=>{
+      const snap = await tx.get(ref);
+      if(snap.exists) throw new Error("Produkt został już dodany ponownie");
+      tx.set(ref, {
+        name:it.name, category:it.category||"", section:it.section||"", qty:it.qty,
+        by, createdAt:it.createdAt ? new Date(it.createdAt) : firebase.firestore.FieldValue.serverTimestamp(),
+        updatedAt:firebase.firestore.FieldValue.serverTimestamp()
+      });
+    });
+    try{ await liveOrderRef(LIVE.orderId).set({ updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, {merge:true}); }catch(e){}
+    liveTouchAlias();
+  }
+
+  async function setBasketItemQty(it, qty){
+    if(it.__live && liveCanWrite()) return liveSetItemQty(it, qty);
+    it.qty = qty;
+    it.updatedAt = Date.now();
+    save();
+    renderAll();
+  }
+
+  function restoreLocalBasketItem(it, index){
+    state.order.items.splice(Math.min(index, state.order.items.length), 0, it);
+    save();
+    renderAll();
   }
 
 
@@ -408,6 +439,12 @@ function ensureInputVisible(el){
     // Use user's locale; include weekday.
     const opts = { weekday:"long", year:"numeric", month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit" };
     return d.toLocaleString("pl-PL", opts);
+  }
+
+  function fmtShortDateTime(ts){
+    const d = new Date(Number(ts));
+    if(!Number.isFinite(d.getTime())) return "—";
+    return d.toLocaleString("pl-PL", { day:"2-digit", month:"2-digit", hour:"2-digit", minute:"2-digit" });
   }
 
   function lastOrderTime(){
@@ -497,6 +534,8 @@ function ensureInputVisible(el){
   }
 
   function renderFilters(){
+    renderSearchSuggestions();
+    updateSearchClearState();
 	  // Sekcja
 	  const selSec = $("filterSection");
 	  const secs = buildSections();
@@ -567,6 +606,41 @@ function ensureInputVisible(el){
       onlyBtn.textContent = state.ui.onlyInCart ? "Włączone" : "Wyłączone";
       onlyBtn.classList.toggle("primary", !!state.ui.onlyInCart);
     }
+  }
+
+  function renderSearchSuggestions(){
+    const list = $("productSearchSuggestions");
+    if(!list) return;
+    const names = Array.from(new Set((state.catalog||[]).map(p=>norm(p.name)).filter(Boolean)))
+      .sort((a,b)=>a.localeCompare(b,"pl")).slice(0,250);
+    list.replaceChildren(...names.map(name=>{
+      const option = document.createElement("option");
+      option.value = name;
+      return option;
+    }));
+  }
+
+  function updateSearchClearState(){
+    const wrap = $("filterSearch")?.closest(".search-wrap");
+    if(wrap) wrap.classList.toggle("has-value", !!norm($("filterSearch").value));
+  }
+
+  function saveListPosition(){
+    const panel = $("panelOrder");
+    if(panel && panel.classList.contains("hidden")) return;
+    try{
+      localStorage.setItem(LS_VIEW_KEY, JSON.stringify({
+        scrollY: Math.max(0, window.scrollY||0),
+        search: $("filterSearch") ? $("filterSearch").value : ""
+      }));
+    }catch(e){}
+  }
+
+  function loadListPosition(){
+    try{
+      const value = JSON.parse(localStorage.getItem(LS_VIEW_KEY)||"null");
+      return value && typeof value === "object" ? value : null;
+    }catch(e){ return null; }
   }
 
   function getFilteredProducts(){
@@ -738,6 +812,8 @@ function ensureInputVisible(el){
           focusSearchAfterAdd = true;
           const searchEl = $("filterSearch");
           if(searchEl) searchEl.value = "";
+          updateSearchClearState();
+          saveListPosition();
           rememberScroll();
           addToOrder(p, qty);
           row.classList.add("item--flash");
@@ -825,7 +901,7 @@ function ensureInputVisible(el){
       it.updatedAt = now;
       it.by = it.by && it.by !== by ? it.by : by; // keep if mixed; we'll track via list anyway
     }else{
-      state.order.items.push({ id: uid(), name, category, qty, updatedAt: now, by });
+      state.order.items.push({ id: uid(), name, category, qty, createdAt: now, updatedAt: now, by });
     }
     toast("Dodano do koszyka ✅");
     const warning = quantityWarning(it ? it.qty : qty);
@@ -951,6 +1027,8 @@ function ensureInputVisible(el){
             <div class="brow__left">
               <div class="brow__name">${escapeHtml(it.name)}</div>
               <div class="brow__by">Dodane przez: ${escapeHtml(it.by || "—")}</div>
+              <div class="brow__updated">Dodano: ${escapeHtml(fmtShortDateTime(it.createdAt || it.updatedAt))}</div>
+              <div class="brow__updated">Ostatnia zmiana: ${escapeHtml(fmtShortDateTime(it.updatedAt))}</div>
             </div>
             <div class="brow__right">
               <button class="smallbtn qty-step" data-step="-1" title="Zmniejsz o 1">−</button>
@@ -971,13 +1049,10 @@ function ensureInputVisible(el){
               if(!parsed || parsed.num == null){ toast("Tę ilość zmień ręcznie"); return; }
               const next = Math.max(0, parsed.num + delta);
               const nextQty = formatNum(next) + (parsed.unit || "");
-              if(it.__live && liveCanWrite()){
-                liveSetItemQty(it, nextQty).catch(e=>{ console.error(e); toast("Błąd LIVE zapisu"); });
-                return;
-              }
-              it.qty = nextQty;
-              save();
-              renderAll();
+              const oldQty = it.qty;
+              setBasketItemQty(it, nextQty)
+                .then(()=>showUndoToast("Ilość zmieniona", ()=>setBasketItemQty(it, oldQty)))
+                .catch(e=>{ console.error(e); toast("Błąd LIVE zapisu"); });
             });
           });
 
@@ -986,24 +1061,22 @@ function ensureInputVisible(el){
             if(v === null) return;
             const nv = norm(v);
             if(!nv){ toast("Ilość nie może być pusta"); return; }
-
-            // LIVE sync: edycja ma być widoczna na innych urządzeniach
-            if(it.__live && liveCanWrite()){
-              liveSetItemQty(it, nv).catch(e=>{ console.error(e); toast("Błąd LIVE zapisu"); });
-              return;
-            }
-
-            it.qty = nv;
-            save();
-            renderAll();
+            const oldQty = it.qty;
+            setBasketItemQty(it, nv)
+              .then(()=>showUndoToast("Ilość zmieniona", ()=>setBasketItemQty(it, oldQty)))
+              .catch(e=>{ console.error(e); toast("Błąd LIVE zapisu"); });
           });
 
           del.addEventListener("click", () => {
             if(!confirm(`Usunąć: ${it.name}?`)) return;
+            const snapshot = {...it};
+            const index = state.order.items.findIndex(x=>x.id === it.id);
 
             // LIVE sync: usuń z bazy, żeby zniknęło na wszystkich urządzeniach
             if(it.__live && liveCanWrite()){
-              liveDeleteItem(it).catch(e=>{ console.error(e); toast("Błąd LIVE usuwania"); });
+              liveDeleteItem(it)
+                .then(()=>showUndoToast("Pozycja usunięta", ()=>liveRestoreItem(snapshot)))
+                .catch(e=>{ console.error(e); toast("Błąd LIVE usuwania"); });
               return;
             }
 
@@ -1015,6 +1088,7 @@ function ensureInputVisible(el){
             }
             save();
             renderAll();
+            showUndoToast("Pozycja usunięta", ()=>restoreLocalBasketItem(snapshot, index < 0 ? state.order.items.length : index));
           });
 g.appendChild(r);
         }
@@ -1177,6 +1251,7 @@ function renderExport(){
 
   // Toast
   let toastTimer = null;
+  let undoToastTimer = null;
   function toast(msg){
     let el = document.getElementById("toast");
     if(!el){
@@ -1201,6 +1276,38 @@ function renderExport(){
     el.style.display = "block";
     if(toastTimer) clearTimeout(toastTimer);
     toastTimer = setTimeout(() => { el.style.display = "none"; }, 1800);
+  }
+
+  function showUndoToast(message, undo){
+    let el = document.getElementById("undoToast");
+    if(!el){
+      el = document.createElement("div");
+      el.id = "undoToast";
+      Object.assign(el.style, {position:"fixed", left:"50%", bottom:"18px", transform:"translateX(-50%)", zIndex:"1000", display:"flex", alignItems:"center", gap:"12px", background:"rgba(0,0,0,.92)", color:"#fff", padding:"10px 12px", borderRadius:"12px", border:"1px solid rgba(255,255,255,.2)", fontWeight:"700", maxWidth:"94vw", boxShadow:"0 6px 24px rgba(0,0,0,.45)"});
+      document.body.appendChild(el);
+    }
+    const label = document.createElement("span");
+    label.textContent = message;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = "Cofnij";
+    Object.assign(button.style, {border:0, borderRadius:"8px", padding:"8px 12px", background:"#7c3aed", color:"white", fontWeight:"900", cursor:"pointer", whiteSpace:"nowrap"});
+    el.replaceChildren(label, button);
+    el.style.display = "flex";
+    if(undoToastTimer) clearTimeout(undoToastTimer);
+    undoToastTimer = setTimeout(()=>{ el.style.display="none"; }, 8000);
+    button.addEventListener("click", async()=>{
+      button.disabled = true;
+      try{
+        await undo();
+        el.style.display = "none";
+        toast("Ostatnia zmiana cofnięta");
+      }catch(e){
+        console.error(e);
+        toast("Nie udało się cofnąć — koszyk mógł się już zmienić");
+        el.style.display = "none";
+      }
+    }, {once:true});
   }
 
   function escapeAttr(s){ return String(s||"").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
@@ -2085,6 +2192,13 @@ function renderExport(){
 
   // Init + events
   function wire(){
+    let viewSaveTimer = null;
+    window.addEventListener("scroll", ()=>{
+      clearTimeout(viewSaveTimer);
+      viewSaveTimer = setTimeout(saveListPosition, 250);
+    }, {passive:true});
+    window.addEventListener("pagehide", saveListPosition);
+    document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState === "hidden") saveListPosition(); });
     $("btnMenu").addEventListener("click", openSheet);
     $("sheetBackdrop").addEventListener("click", closeSheet);
     $("btnCloseSheet").addEventListener("click", closeSheet);
@@ -2101,7 +2215,19 @@ function renderExport(){
 
 	    $("filterSection").addEventListener("change", () => { renderFilters(); renderProductList(); });
 	    $("filterCategory").addEventListener("change", renderProductList);
-    $("filterSearch").addEventListener("input", renderProductList);
+	    $("filterSearch").addEventListener("input", ()=>{
+      updateSearchClearState();
+      renderProductList();
+      saveListPosition();
+    });
+    const clearSearch = $("btnClearSearch");
+    if(clearSearch) clearSearch.addEventListener("click", ()=>{
+      $("filterSearch").value = "";
+      updateSearchClearState();
+      renderProductList();
+      saveListPosition();
+      $("filterSearch").focus();
+    });
     const favBtn = document.getElementById("btnFav");
     if(favBtn){ favBtn.addEventListener("click", ()=>{ state.ui.favMode = !state.ui.favMode; save(); renderFilters(); renderProductList(); }); }
     const topBtn = document.getElementById("btnTop");
@@ -2117,7 +2243,24 @@ function renderExport(){
     if(btnQuick) btnQuick.addEventListener("click", refreshCatalogQuick);
     
     if(document.getElementById("btnNewOrder2")) $("btnNewOrder2").addEventListener("click", newOrder);
-    if(document.getElementById("btnClearCart")) $("btnClearCart").addEventListener("click", () => { if(confirm("Wyczyścić koszyk?")){ state.order.items=[]; save(); renderAll(); toast("Koszyk wyczyszczony"); } });
+    if(document.getElementById("btnClearCart")) $("btnClearCart").addEventListener("click", () => {
+      if(!confirm("Wyczyścić koszyk?")) return;
+      const snapshot = state.order.items.map(it=>({...it}));
+      if(LIVE.ready && liveCanWrite() && snapshot.every(it=>it.__live)){
+        Promise.all(snapshot.map(it=>liveDeleteItem(it)))
+          .then(()=>showUndoToast("Koszyk wyczyszczony", ()=>Promise.all(snapshot.map(it=>liveRestoreItem(it)))))
+          .catch(e=>{ console.error(e); toast("Nie udało się wyczyścić koszyka"); });
+        return;
+      }
+      state.order.items=[];
+      save();
+      renderAll();
+      showUndoToast("Koszyk wyczyszczony", ()=>{
+        state.order.items = snapshot;
+        save();
+        renderAll();
+      });
+    });
 $("btnBack").addEventListener("click", () => showPanel("panelOrder"));
 
     $("btnCopy").addEventListener("click", copyExport);
@@ -2245,7 +2388,7 @@ To skasuje też ich pozycje w bazie.`)) return;
     // Register service worker
     if("serviceWorker" in navigator){
       // Cache-bust SW itself to ensure Chrome/iOS fetches the newest worker.
-      navigator.serviceWorker.register("./sw.js?v=20261012e").catch(()=>{});
+      navigator.serviceWorker.register("./sw.js?v=20261012g").catch(()=>{});
     }
   }
 
@@ -2366,10 +2509,18 @@ To skasuje też ich pozycje w bazie.`)) return;
 
   function boot(){
     load();
+    const savedView = loadListPosition();
+    if(savedView && typeof savedView.search === "string") $("filterSearch").value = savedView.search;
     applyUiScale(state.settings.uiScale);
     ensureSeed(); // comment this out if you don't want starter catalog
     renderAll();
     wire();
+    if(savedView && Number.isFinite(Number(savedView.scrollY))){
+      requestAnimationFrame(()=>{
+        const maxScroll = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+        window.scrollTo(0, Math.min(maxScroll, Math.max(0, Number(savedView.scrollY))));
+      });
+    }
     // LIVE init
     initFirebase();
     liveBindUI();

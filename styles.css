@@ -224,6 +224,7 @@ textarea{
   cursor:pointer;
 }
 .brow__by{color:var(--muted); font-size:12px; margin-top:2px}
+.brow__updated{color:var(--muted); font-size:11px; margin-top:2px}
 .brow__right{display:flex; align-items:center; gap:8px}
 .brow__warning{flex:0 0 100%; color:#ffd27a; font-size:12px; padding:0 2px 2px}
 .qty-step{min-width:38px; min-height:38px; font-size:18px; font-weight:900; line-height:1}
@@ -351,6 +352,10 @@ textarea{
 .order-row3 .field{flex:1 1 auto; min-width:0;}
 .order-row3 input{min-width:0;}
 #filterSearch{width:100%; min-width:0;}
+.search-wrap{position:relative; width:100%; min-width:0}
+.search-wrap #filterSearch{padding-right:42px}
+.search-wrap #btnClearSearch{display:none; position:absolute; right:7px; top:50%; transform:translateY(-50%); width:32px; height:32px; border:0; border-radius:50%; background:rgba(255,255,255,.12); color:var(--text); font-size:22px; line-height:1; cursor:pointer}
+.search-wrap.has-value #btnClearSearch{display:block}
 #btnCart{flex:0 0 auto; white-space:nowrap;}
   .order-row3 .field{min-width:0;}
   .order-row3 input{min-width:0; width:100%;}
