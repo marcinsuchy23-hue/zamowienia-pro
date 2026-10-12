@@ -30,6 +30,8 @@ Najlepiej wrzucić na hosting (darmowy):
 - „Nowe zamówienie” czyści koszyk
 - Pole „Twoje imię” (kto dodaje)
 - W Bazie produktów ukrywa pozycje już dodane do koszyka
+- Widoki Koszyk i Eksport są rozdzielone; Eksport pokazuje tekst i opcje kopiowania/PDF
+- Mobilny formularz Bazy układa się w czytelne kolumny, a zoom aparatu startuje na 3× (jeśli kamera to obsługuje)
 
 ## Ważne
 Ta wersja zapisuje dane w pamięci przeglądarki (localStorage).

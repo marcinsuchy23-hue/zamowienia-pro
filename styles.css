@@ -99,6 +99,22 @@ body{
 .row--gap{gap:12px}
 .row--end{justify-content:flex-end}
 
+/* Baza: stable desktop columns and a deliberate two-row mobile form. */
+.catalog-header{display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px; min-width:0}
+.catalog-title{font-weight:800; flex:0 0 auto}
+.catalog-header-actions{display:flex; flex-wrap:wrap; justify-content:flex-end; gap:8px; min-width:0}
+.catalog-form-fields{display:grid; grid-template-columns:minmax(0,1.05fr) minmax(0,1.25fr) minmax(0,.9fr); grid-template-areas:"name sections category"; gap:12px; align-items:start; min-width:0}
+.catalog-field-name{grid-area:name; min-width:0}
+.catalog-field-sections{grid-area:sections; min-width:0}
+.catalog-field-category{grid-area:category; min-width:0}
+#secCheckboxes{width:100%; max-width:100%; min-width:0}
+#secCheckboxes .chip{max-width:100%; min-width:0}
+#secCheckboxes .chip span{min-width:0; overflow-wrap:anywhere}
+#secCheckboxes .chip input[type="checkbox"]{appearance:none; -webkit-appearance:none; display:grid; place-items:center; width:20px; height:20px; flex:0 0 20px; margin:0; border:1px solid rgba(255,255,255,.36); border-radius:6px; background:rgba(0,0,0,.22); color:#fff}
+#secCheckboxes .chip input[type="checkbox"]:checked{background:var(--accent); border-color:var(--accent)}
+#secCheckboxes .chip input[type="checkbox"]:checked::after{content:"✓"; font-size:14px; line-height:1; font-weight:900}
+.catalog-form-actions{margin-top:12px}
+
 .field{flex:1; min-width:140px}
 label{display:block; color:var(--muted); font-size:12px; font-weight:800; margin:0 0 6px}
 input,select,textarea{
@@ -342,6 +358,19 @@ textarea{
   #btnCart{justify-content:center;}
 
   #btnGoCatalog, #btnGoExport{justify-content:center;}
+
+  .catalog-header{display:flex; flex-direction:column; align-items:stretch; gap:10px}
+  .catalog-header-actions{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); width:100%}
+  .catalog-header-actions .btn{min-width:0; min-height:44px; padding:9px 7px; white-space:normal; line-height:1.2}
+  .catalog-form-fields{grid-template-columns:minmax(0,1fr) minmax(0,1fr); grid-template-areas:"name category" "sections sections"; gap:12px}
+  .catalog-form-fields .field{min-width:0; width:100%}
+  .catalog-field-sections .small{line-height:1.35; overflow-wrap:anywhere}
+  #secCheckboxes{justify-content:flex-start; gap:8px}
+  #secCheckboxes .chip{font-size:13px; padding:9px 10px}
+  .catalog-form-actions{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); width:100%; gap:8px}
+  .catalog-form-actions .btn{min-width:0; padding:10px 7px; white-space:normal; line-height:1.2}
+  .cart-actions{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; width:100%}
+  .cart-actions .btn{min-width:0; white-space:normal}
 
   /* iOS/Safari grid sizing: allow the search field to shrink instead of being clipped/hidden */
   .order-row3{margin-top:10px; display:flex; gap:10px; align-items:flex-end;}

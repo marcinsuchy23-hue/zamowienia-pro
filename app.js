@@ -518,10 +518,13 @@ function ensureInputVisible(el){
       if(!range || !Number.isFinite(range.min) || !Number.isFinite(range.max) || range.max <= range.min) return;
       slider.min = String(range.min); slider.max = String(range.max);
       slider.step = String(Number.isFinite(range.step) && range.step > 0 ? range.step : 0.1);
-      const current = track.getSettings?.()?.zoom;
-      slider.value = String(Number.isFinite(current) ? current : range.min);
+      const step = Number.isFinite(range.step) && range.step > 0 ? range.step : 0.1;
+      const target = Math.max(range.min, Math.min(range.max, 3.0));
+      const steppedTarget = Math.max(range.min, Math.min(range.max, range.min + Math.round((target - range.min) / step) * step));
+      slider.value = String(Number(steppedTarget.toFixed(3)));
       slider.disabled = false;
       label.textContent = `Powiększenie aparatu: ${Number(slider.value).toFixed(1)}×`;
+      applyScannerZoom();
     }catch(e){ /* Zoom is optional. */ }
   }
 
@@ -673,6 +676,7 @@ function ensureInputVisible(el){
     // pewne odświeżanie po przełączeniu zakładki
     renderAll();
     if(id === "panelCatalog") renderCatalogSectionPicker();
+    if(id === "panelCart") renderCart();
     // refresh export if needed
     if(id === "panelExport") renderExport();
   }
@@ -681,7 +685,7 @@ function ensureInputVisible(el){
   // shells defer or suppress hashchange in edge cases, so navigation buttons
   // must not depend on that event to switch screens.
   function navigateToRoute(route, updateHash=true){
-    const panels = { order:"panelOrder", catalog:"panelCatalog", export:"panelExport" };
+    const panels = { order:"panelOrder", catalog:"panelCatalog", cart:"panelCart", export:"panelExport" };
     const key = panels[route] ? route : "order";
     if(updateHash && window.location.hash !== `#${key}`) window.location.hash = key;
     showPanel(panels[key]);
@@ -1094,7 +1098,7 @@ function ensureInputVisible(el){
   function renderBasket(){
     const items = [...state.order.items];
 
-    const targetIds = ["basket","basketExport"];
+    const targetIds = ["basketCart"];
     for(const id of targetIds){
       const el = document.getElementById(id);
       if(!el) continue;
@@ -1282,7 +1286,19 @@ g.appendChild(r);
   function openExport(){
     navigateToRoute("export");
     renderExport();
-    renderBasket();
+  }
+
+  function openCart(){
+    navigateToRoute("cart");
+  }
+
+  function renderCart(){
+    const t = lastOrderTime();
+    const who = uniqueBy();
+    $("cartDate").textContent = t ? fmtDate(t) : "—";
+    $("cartMeta").textContent = t
+      ? `Zamówione przez: ${who.length ? who.join(", ") : "—"}`
+      : "Koszyk jest pusty.";
   }
 
 function renderExport(){
@@ -1318,6 +1334,7 @@ function renderExport(){
     renderProductList();
     updateCartCount();
     renderBasket();
+    renderCart();
     renderCatalog();
     updateCartCount();
     // export lazy
@@ -2275,7 +2292,7 @@ function renderExport(){
     if(onlyBtn){ onlyBtn.addEventListener("click", ()=>{ state.ui.onlyInCart = !state.ui.onlyInCart; save(); renderFilters(); renderProductList(); }); }
 
 
-    $("btnCart").addEventListener("click", openExport);
+    $("btnCart").addEventListener("click", openCart);
     $("btnGoExport").addEventListener("click", openExport);
     const btnQuick = document.getElementById("btnQuickRefresh");
     if(btnQuick) btnQuick.addEventListener("click", refreshCatalogQuick);
@@ -2299,7 +2316,10 @@ function renderExport(){
     
     if(document.getElementById("btnNewOrder2")) $("btnNewOrder2").addEventListener("click", newOrder);
     if(document.getElementById("btnClearCart")) $("btnClearCart").addEventListener("click", () => { if(confirm("Wyczyścić koszyk?")){ state.order.items=[]; save(); renderAll(); toast("Koszyk wyczyszczony"); } });
-$("btnBack").addEventListener("click", () => navigateToRoute("order"));
+    $("btnBackFromCart").addEventListener("click", () => navigateToRoute("order"));
+    $("btnBackFromExport").addEventListener("click", () => navigateToRoute("order"));
+    $("btnGoCartFromExport").addEventListener("click", openCart);
+    $("btnGoExportFromCart").addEventListener("click", openExport);
 
     $("btnCopy").addEventListener("click", copyExport);
     const btnPrintHurt = document.getElementById("btnPrintHurt");
@@ -2426,7 +2446,7 @@ To skasuje też ich pozycje w bazie.`)) return;
     // Register service worker
     if("serviceWorker" in navigator){
       // Cache-bust SW itself to ensure Chrome/iOS fetches the newest worker.
-      navigator.serviceWorker.register("./sw.js?v=20261013a").catch(()=>{});
+      navigator.serviceWorker.register("./sw.js?v=20261013b").catch(()=>{});
     }
   }
 

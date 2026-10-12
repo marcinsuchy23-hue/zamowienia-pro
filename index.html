@@ -8,7 +8,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon-192.png">
   <!-- cache-bust for GitHub Pages / iOS Safari (updates show instantly) -->
-  <link rel="stylesheet" href="styles.css?v=20261013a" />
+  <link rel="stylesheet" href="styles.css?v=20261013b" />
 </head>
 <body>
   <div id="uiRoot">
@@ -72,21 +72,21 @@
 
     <section class="panel hidden" id="panelCatalog">
       <div class="card">
-        <div class="row row--gap" style="justify-content:space-between;align-items:center;margin-bottom:10px">
-          <div style="font-weight:800">📚 Baza produktów</div>
-          <div class="row row--gap">
+        <div class="catalog-header">
+          <div class="catalog-title">📚 Baza produktów</div>
+          <div class="catalog-header-actions">
             <button class="btn" id="btnBackFromCatalog" type="button">← Wróć</button>
             <button class="btn" id="btnImportCatalog" type="button">⬇ Import z Google Sheets</button>
             <button class="btn" id="btnConnectSheetWrite" type="button" title="Ustaw automatyczny zapis produktów i kodów">🔗 Połącz zapis</button>
             <button class="btn" id="btnExportCatalog" type="button">⬆ Export CSV</button>
           </div>
         </div>
-        <div class="row row--gap">
-          <div class="field">
+        <div class="catalog-form-fields">
+          <div class="field catalog-field-name">
             <label>Nazwa produktu</label>
             <input id="newProdName" placeholder="np. Masło" autocomplete="off" />
           </div>
-	          <div class="field">
+	          <div class="field catalog-field-sections">
 	            <label>Sekcje (opcjonalnie)</label>
 	            <input list="secDatalist" id="newProdSections" placeholder="np. Grill,Palniki" autocomplete="off" />
 	            <datalist id="secDatalist"></datalist>
@@ -95,13 +95,13 @@
             </div>
             <div id="secCheckboxes" class="chips" style="margin-top:8px; flex-wrap:wrap; gap:8px"></div>
 	          </div>
-          <div class="field">
+	          <div class="field catalog-field-category">
             <label>Kategoria</label>
             <input list="catDatalist" id="newProdCat" placeholder="np. Nabiał" autocomplete="off" />
             <datalist id="catDatalist"></datalist>
           </div>
         </div>
-        <div class="row row--gap row--end">
+        <div class="row row--gap row--end catalog-form-actions">
           <button class="btn" id="btnSeed">✨ Wgraj przykładowe</button>
           <button class="btn primary" id="btnAddProduct">➕ Dodaj produkt</button>
         </div>
@@ -114,6 +114,34 @@
       <div class="list" id="catalogList"></div>
     </section>
 
+    <section class="panel hidden" id="panelCart">
+      <div class="card">
+        <div class="export-top">
+          <div class="export-title">KOSZYK</div>
+          <div class="export-date" id="cartDate">—</div>
+        </div>
+        <div class="export-meta" id="cartMeta">—</div>
+        
+        <div class="list-head" style="margin-top:6px">
+          <div class="list-head__title">Koszyk</div>
+          <div class="list-head__hint">Wspólne zamówione pozycje</div>
+        </div>
+        <div class="card basket" id="basketCart"></div>
+
+        <div class="row row--gap" style="justify-content:flex-end;margin-top:10px">
+          <button class="btn" id="btnNewOrder2">🧹 Nowe zamówienie</button>
+          <button class="btn danger" id="btnClearCart">🗑 Wyczyść koszyk</button>
+        </div>
+
+        <div class="row row--gap row--end cart-actions">
+          <button class="btn" id="btnBackFromCart">← Wróć</button>
+          <button class="btn" id="btnGoCatalogFromCart" title="Baza produktów">📚 Baza</button>
+          <button class="btn" id="btnOrders" title="Lista zamówień">📂 Zamówienia</button>
+          <button class="btn primary" id="btnGoExportFromCart">📤 Eksport</button>
+        </div>
+      </div>
+    </section>
+
     <section class="panel hidden" id="panelExport">
       <div class="card">
         <div class="export-top">
@@ -121,24 +149,14 @@
           <div class="export-date" id="expDate">—</div>
         </div>
         <div class="export-meta" id="expMeta">—</div>
-        
         <div class="list-head" style="margin-top:6px">
-          <div class="list-head__title">Koszyk</div>
-          <div class="list-head__hint">Tu są zamówione pozycje • eksport poniżej</div>
+          <div class="list-head__title">Eksport zamówienia</div>
+          <div class="list-head__hint">Tekst do skopiowania lub PDF</div>
         </div>
-        <div class="card basket" id="basketExport"></div>
-
-        <div class="row row--gap" style="justify-content:flex-end;margin-top:10px">
-          <button class="btn" id="btnNewOrder2">🧹 Nowe zamówienie</button>
-          <button class="btn danger" id="btnClearCart">🗑 Wyczyść koszyk</button>
-        </div>
-
         <textarea id="exportText" readonly></textarea>
-
-        <div class="row row--gap row--end">
-          <button class="btn" id="btnBack">← Wróć</button>
-          <button class="btn" id="btnGoCatalogFromCart" title="Baza produktów">📚 Baza</button>
-          <button class="btn" id="btnOrders" title="Lista zamówień">📂 Zamówienia</button>
+        <div class="row row--gap row--end cart-actions">
+          <button class="btn" id="btnBackFromExport">← Wróć</button>
+          <button class="btn" id="btnGoCartFromExport">🧺 Koszyk</button>
           <button class="btn" id="btnCopy">Kopiuj</button>
           <button class="btn primary" id="btnPrintHurt">🖨 PDF Hurtownia</button>
         </div>
@@ -267,7 +285,7 @@
       <p class="small" id="scannerStatus" aria-live="polite">Uruchamiam aparat…</p>
       <video id="scannerVideo" autoplay playsinline muted></video>
       <button class="btn" id="btnScannerFocus" type="button">🔎 Ponów autofocus</button>
-      <label class="scanner-zoom" for="scannerZoom"><span id="scannerZoomLabel">Powiększenie aparatu niedostępne</span><input id="scannerZoom" type="range" min="1" max="1" step="0.1" value="1" disabled /><span class="small">Powiększaj suwakiem, nie całą stronę — rozmiar aplikacji się nie zmieni.</span></label>
+      <label class="scanner-zoom" for="scannerZoom"><span id="scannerZoomLabel">Powiększenie aparatu niedostępne</span><input id="scannerZoom" type="range" min="1" max="3" step="0.1" value="3" disabled /><span class="small">Powiększaj suwakiem, nie całą stronę — rozmiar aplikacji się nie zmieni.</span></label>
       <div class="scanner-manual">
         <input id="scannerManualCode" inputmode="numeric" placeholder="Możesz też wpisać kod ręcznie" />
         <button class="btn primary" id="btnScannerManual" type="button">Szukaj kodu</button>
@@ -278,7 +296,7 @@
 
   <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore-compat.js"></script>
-<script src="firebase-config.js?v=20261013a"></script>
-<script src="app.js?v=20261013a"></script>
+<script src="firebase-config.js?v=20261013b"></script>
+<script src="app.js?v=20261013b"></script>
 </body>
 </html>
