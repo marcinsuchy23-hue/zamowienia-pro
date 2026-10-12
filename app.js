@@ -387,6 +387,9 @@ function ensureInputVisible(el){
   let lastActionKey = "";
   let lastActionFocus = false;
   let focusSearchAfterAdd = false;
+  let barcodeScriptPromise = null;
+  let barcodeScannerControls = null;
+  let barcodeScannerActive = false;
 
   const state = {
     settings: { userName: "", restaurant: "Zamówienia PRO", sections: DEFAULT_SECTIONS.slice(), uiScale: 1 },
@@ -445,6 +448,100 @@ function ensureInputVisible(el){
     const d = new Date(Number(ts));
     if(!Number.isFinite(d.getTime())) return "—";
     return d.toLocaleString("pl-PL", { day:"2-digit", month:"2-digit", hour:"2-digit", minute:"2-digit" });
+  }
+
+  function loadBarcodeLibrary(){
+    if(window.ZXingBrowser) return Promise.resolve(window.ZXingBrowser);
+    if(barcodeScriptPromise) return barcodeScriptPromise;
+    barcodeScriptPromise = new Promise((resolve,reject)=>{
+      const script = document.createElement("script");
+      script.src = "https://unpkg.com/@zxing/browser@0.2.1/umd/zxing-browser.min.js";
+      script.async = true;
+      script.onload = ()=>window.ZXingBrowser ? resolve(window.ZXingBrowser) : reject(new Error("Nie można uruchomić czytnika kodów"));
+      script.onerror = ()=>reject(new Error("Brak połączenia z biblioteką skanowania"));
+      document.head.appendChild(script);
+    });
+    return barcodeScriptPromise;
+  }
+
+  async function openBarcodeScanner(){
+    const modal = $("scannerModal");
+    modal.classList.remove("hidden");
+    $("scannerStatus").textContent = "Proszę zezwolić na dostęp do aparatu…";
+    $("scannerManualCode").value = "";
+    if(!window.isSecureContext || !navigator.mediaDevices?.getUserMedia){
+      $("scannerStatus").textContent = "Aparat wymaga bezpiecznego połączenia HTTPS. Możesz wpisać kod ręcznie poniżej.";
+      return;
+    }
+    try{
+      const ZXing = await loadBarcodeLibrary();
+      if(!modal.isConnected || modal.classList.contains("hidden")) return;
+      const reader = new ZXing.BrowserMultiFormatReader();
+      const video = $("scannerVideo");
+      barcodeScannerActive = true;
+      $("scannerStatus").textContent = "Uruchamiam aparat…";
+      const controls = await reader.decodeFromVideoDevice(undefined, video, result=>{
+        if(result && barcodeScannerActive) processScannedBarcode(result.getText());
+      });
+      if(!barcodeScannerActive){ try{ controls.stop(); }catch(e){} return; }
+      barcodeScannerControls = controls;
+      $("scannerStatus").textContent = "Ustaw kod kreskowy przed aparatem";
+    }catch(e){
+      console.warn(e);
+      barcodeScriptPromise = null;
+      stopBarcodeScanner();
+      $("scannerStatus").textContent = "Nie udało się uruchomić aparatu. Sprawdź uprawnienia lub wpisz kod ręcznie.";
+    }
+  }
+
+  function stopBarcodeScanner(){
+    barcodeScannerActive = false;
+    if(barcodeScannerControls){ try{ barcodeScannerControls.stop(); }catch(e){} }
+    barcodeScannerControls = null;
+    const video = $("scannerVideo");
+    if(video){
+      try{ video.pause(); }catch(e){}
+      if(video.srcObject){
+        try{ video.srcObject.getTracks().forEach(track=>track.stop()); }catch(e){}
+        video.srcObject = null;
+      }
+    }
+  }
+
+  function closeBarcodeScanner(){
+    stopBarcodeScanner();
+    const modal = $("scannerModal");
+    if(modal) modal.classList.add("hidden");
+  }
+
+  function processScannedBarcode(value){
+    const code = norm(value).replace(/\s+/g, "");
+    if(!code){ toast("Nie odczytano kodu"); return; }
+    closeBarcodeScanner();
+    let product = state.catalog.find(p=>norm(p.barcode).replace(/\s+/g, "") === code);
+    if(!product){
+      const productName = prompt(`Nie ma jeszcze produktu przypisanego do kodu ${code}.\nWpisz dokładną nazwę produktu z bazy, aby zapisać to przypisanie:`);
+      if(productName === null) return;
+      product = state.catalog.find(p=>norm(p.name).toLocaleLowerCase("pl-PL") === norm(productName).toLocaleLowerCase("pl-PL"));
+      if(!product){ toast("Nie znaleziono produktu o takiej nazwie"); return; }
+      product.barcode = code;
+      save();
+      renderCatalog();
+      toast(`Kod przypisany do: ${product.name}`);
+    }
+    const search = $("filterSearch");
+    search.value = product.name;
+    updateSearchClearState();
+    renderProductList();
+    saveListPosition();
+    setTimeout(()=>{
+      const qty = document.querySelector("#productList .item input.qty");
+      if(qty){
+        try{ qty.focus({preventScroll:true}); }catch(e){ qty.focus(); }
+        ensureInputVisible(qty);
+      }
+    }, 40);
+    toast(`Znaleziono: ${product.name} — wpisz ilość`);
   }
 
   function lastOrderTime(){
@@ -1114,6 +1211,7 @@ g.appendChild(r);
         <div class="item__left">
           <div class="item__name">${escapeHtml(p.name)}</div>
           <div class="item__meta">${escapeHtml(capFirst(p.category) || "Inne")}</div>
+          ${p.barcode ? `<div class="item__meta">Kod: ${escapeHtml(p.barcode)}</div>` : ""}
         </div>
         <div class="item__right">
           <button class="smallbtn danger" title="Usuń">🗑</button>
@@ -1955,6 +2053,7 @@ function renderExport(){
   function addProductFromForm(){
     const name = capFirst($("newProdName").value.toLowerCase());
     const cat = capFirst($("newProdCat").value);
+    const barcode = norm($("newProdBarcode").value).replace(/\s+/g, "");
 	  const checked = getCheckedSections();
 	  const sections = checked.length ? checked : parseSections($("newProdSections").value);
     if(!name){ toast("Podaj nazwę produktu"); return; }
@@ -1963,10 +2062,15 @@ function renderExport(){
     // de-dupe by name+cat
     const exists = state.catalog.find(p => capFirst(p.name) === name && capFirst(p.category) === cat);
     if(exists){ toast("Taki produkt już jest"); return; }
+    if(barcode && state.catalog.some(p=>norm(p.barcode).replace(/\s+/g, "") === barcode)){
+      toast("Ten kod kreskowy jest już przypisany");
+      return;
+    }
 
-	  state.catalog.push({ id: uid(), name, category: cat, sections, createdAt: Date.now() });
+	  state.catalog.push({ id: uid(), name, category: cat, sections, barcode, createdAt: Date.now() });
     $("newProdName").value = "";
     $("newProdCat").value = "";
+	  $("newProdBarcode").value = "";
 	  $("newProdSections").value = "";
     save();
     renderAll();
@@ -1981,7 +2085,9 @@ function renderExport(){
     // reset filters for convenience
 	    $("filterSection").value = "__ALL__";
 	    $("filterCategory").value = "__ALL__";
-	    $("search").value = "";
+	    $("filterSearch").value = "";
+	    updateSearchClearState();
+	    saveListPosition();
     renderAll();
     toast("Nowe zamówienie");
   }
@@ -2228,6 +2334,17 @@ function renderExport(){
       saveListPosition();
       $("filterSearch").focus();
     });
+    const scanButton = $("btnScanBarcode");
+    if(scanButton) scanButton.addEventListener("click", openBarcodeScanner);
+    $("btnScannerClose").addEventListener("click", closeBarcodeScanner);
+    $("scannerBackdrop").addEventListener("click", closeBarcodeScanner);
+    $("btnScannerManual").addEventListener("click", ()=>processScannedBarcode($("scannerManualCode").value));
+    $("scannerManualCode").addEventListener("keydown", ev=>{
+      if(ev.key === "Enter"){ ev.preventDefault(); processScannedBarcode(ev.currentTarget.value); }
+    });
+    document.addEventListener("keydown", ev=>{
+      if(ev.key === "Escape" && !$("scannerModal").classList.contains("hidden")) closeBarcodeScanner();
+    });
     const favBtn = document.getElementById("btnFav");
     if(favBtn){ favBtn.addEventListener("click", ()=>{ state.ui.favMode = !state.ui.favMode; save(); renderFilters(); renderProductList(); }); }
     const topBtn = document.getElementById("btnTop");
@@ -2388,7 +2505,7 @@ To skasuje też ich pozycje w bazie.`)) return;
     // Register service worker
     if("serviceWorker" in navigator){
       // Cache-bust SW itself to ensure Chrome/iOS fetches the newest worker.
-      navigator.serviceWorker.register("./sw.js?v=20261012g").catch(()=>{});
+      navigator.serviceWorker.register("./sw.js?v=20261012h").catch(()=>{});
     }
   }
 
@@ -2405,16 +2522,22 @@ To skasuje też ich pozycje w bazie.`)) return;
     const idxName = header.indexOf("name");
     const idxCategory = header.indexOf("category");
     const idxSections = header.indexOf("sections");
+    const idxBarcode = header.indexOf("barcode");
     if(idxName === -1 || idxCategory === -1) throw new Error("CSV musi mieć kolumny name i category");
 
     const out = [];
+    const oldBarcodeByProduct = new Map((state.catalog||[]).map(p=>[
+      (norm(p.name).toLocaleLowerCase("pl-PL") + "||" + norm(p.category).toLocaleLowerCase("pl-PL")), p.barcode||""
+    ]));
     for(let i=1;i<rows.length;i++){
       const r = rows[i];
       const name = capFirst(norm(r[idxName] || ""));
       const category = capFirst(norm(r[idxCategory] || ""));
       if(!name || !category) continue;
       const sections = idxSections >= 0 ? norm(r[idxSections] || "") : "";
-      out.push({ id: uid(), name, category, sections, createdAt: Date.now() });
+      const key = norm(name).toLocaleLowerCase("pl-PL") + "||" + norm(category).toLocaleLowerCase("pl-PL");
+      const barcode = idxBarcode >= 0 ? norm(r[idxBarcode]||"").replace(/\s+/g, "") : (oldBarcodeByProduct.get(key)||"");
+      out.push({ id: uid(), name, category, sections, barcode, createdAt: Date.now() });
     }
     state.catalog = out;
     if(saveUrl){
@@ -2458,12 +2581,13 @@ To skasuje też ich pozycje w bazie.`)) return;
   }
 
   function exportCatalogToCSV(){
-    const lines = ["name,category,sections"]; // sections = ';' separated
+    const lines = ["name,category,sections,barcode"]; // sections = ';' separated
     for(const p of (state.catalog || [])){
       const name = csvEsc(p.name);
       const cat = csvEsc(p.category);
       const sec = csvEsc((p.sections || []).join(";"));
-      lines.push([name,cat,sec].join(","));
+      const barcode = csvEsc(p.barcode || "");
+      lines.push([name,cat,sec,barcode].join(","));
     }
     const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
     const a = document.createElement("a");

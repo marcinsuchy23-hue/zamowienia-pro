@@ -8,7 +8,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon-192.png">
   <!-- cache-bust for GitHub Pages / iOS Safari (updates show instantly) -->
-  <link rel="stylesheet" href="styles.css?v=20261012g" />
+  <link rel="stylesheet" href="styles.css?v=20261012h" />
 </head>
 <body>
   <div id="uiRoot">
@@ -56,6 +56,7 @@
             <label>Szukaj</label>
             <div class="search-wrap">
               <input id="filterSearch" type="search" list="productSearchSuggestions" placeholder="np. ogórek" autocomplete="off" />
+              <button id="btnScanBarcode" type="button" aria-label="Skanuj kod kreskowy" title="Skanuj kod kreskowy">📷</button>
               <button id="btnClearSearch" type="button" aria-label="Wyczyść wyszukiwanie" title="Wyczyść wyszukiwanie">×</button>
             </div>
             <datalist id="productSearchSuggestions"></datalist>
@@ -86,6 +87,10 @@
             <label>Nazwa produktu</label>
             <input id="newProdName" placeholder="np. Masło" autocomplete="off" />
           </div>
+	          <div class="field">
+	            <label>Kod kreskowy (opcjonalnie)</label>
+	            <input id="newProdBarcode" inputmode="numeric" placeholder="np. EAN-13" autocomplete="off" />
+	          </div>
 	          <div class="field">
 	            <label>Sekcje (opcjonalnie)</label>
 	            <input list="secDatalist" id="newProdSections" placeholder="np. Grill,Palniki" autocomplete="off" />
@@ -257,9 +262,26 @@
     </div>
   </div>
 
+  <div class="scanner-modal hidden" id="scannerModal" role="dialog" aria-modal="true" aria-labelledby="scannerTitle">
+    <div class="scanner-backdrop" id="scannerBackdrop"></div>
+    <div class="scanner-panel">
+      <div class="scanner-head">
+        <strong id="scannerTitle">Skanuj kod kreskowy</strong>
+        <button class="btn" id="btnScannerClose" type="button">Zamknij</button>
+      </div>
+      <p class="small" id="scannerStatus" aria-live="polite">Uruchamiam aparat…</p>
+      <video id="scannerVideo" autoplay playsinline muted></video>
+      <div class="scanner-manual">
+        <input id="scannerManualCode" inputmode="numeric" placeholder="Możesz też wpisać kod ręcznie" />
+        <button class="btn primary" id="btnScannerManual" type="button">Szukaj kodu</button>
+      </div>
+      <div class="small">Kod zostanie dopasowany do produktu z bazy. Ilość wpiszesz po jego znalezieniu.</div>
+    </div>
+  </div>
+
   <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore-compat.js"></script>
-<script src="firebase-config.js?v=20261012g"></script>
-<script src="app.js?v=20261012g"></script>
+<script src="firebase-config.js?v=20261012h"></script>
+<script src="app.js?v=20261012h"></script>
 </body>
 </html>
