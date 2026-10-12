@@ -360,6 +360,7 @@ function ensureInputVisible(el){
   let barcodeScannerControls = null;
   let barcodeScannerActive = false;
   let barcodeScanTarget = "order";
+  let voiceSearchRecognition = null;
 
   const state = {
     settings: { userName: "", restaurant: "Zamówienia PRO", sections: DEFAULT_SECTIONS.slice(), uiScale: 1 },
@@ -609,6 +610,41 @@ function ensureInputVisible(el){
       if(qty){ try{ qty.focus({preventScroll:true}); }catch(e){ qty.focus(); } ensureInputVisible(qty); }
     }, 40);
     toast(`Znaleziono: ${product.name} — wpisz ilość`);
+  }
+
+  function startVoiceSearch(){
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if(!SpeechRecognition){
+      toast("Ta przeglądarka nie obsługuje wyszukiwania głosowego. Możesz wpisać nazwę ręcznie.");
+      return;
+    }
+    if(voiceSearchRecognition){
+      try{ voiceSearchRecognition.abort(); }catch(e){}
+      voiceSearchRecognition = null;
+    }
+    const recognition = new SpeechRecognition();
+    voiceSearchRecognition = recognition;
+    recognition.lang = "pl-PL";
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+    recognition.onresult = event=>{
+      const phrase = norm(event.results?.[0]?.[0]?.transcript || "");
+      if(!phrase){ toast("Nie rozpoznano nazwy produktu"); return; }
+      $("filterSearch").value = phrase;
+      renderProductList();
+      toast(`Szukam: ${phrase}`);
+    };
+    recognition.onerror = event=>{
+      const message = event.error === "not-allowed" || event.error === "service-not-allowed"
+        ? "Zezwól przeglądarce na używanie mikrofonu."
+        : event.error === "no-speech" ? "Nie wykryto mowy. Spróbuj jeszcze raz."
+        : "Nie udało się rozpoznać mowy. Spróbuj ponownie albo wpisz nazwę ręcznie.";
+      toast(message);
+    };
+    recognition.onend = ()=>{ if(voiceSearchRecognition === recognition) voiceSearchRecognition = null; };
+    try{ recognition.start(); toast("Słucham… powiedz nazwę produktu"); }
+    catch(e){ voiceSearchRecognition = null; toast("Nie można teraz uruchomić mikrofonu. Spróbuj ponownie."); }
   }
 
   function lastOrderTime(){
@@ -2326,6 +2362,8 @@ function renderSheetConnectionStatus(){
     if(btnQuick) btnQuick.addEventListener("click", refreshCatalogQuick);
     const scanButton = $("btnScanBarcode");
     if(scanButton) scanButton.addEventListener("click", openBarcodeScanner);
+    const voiceButton = $("btnVoiceSearch");
+    if(voiceButton) voiceButton.addEventListener("click", startVoiceSearch);
     const scanNewProductButton = $("btnScanNewProductBarcode");
     if(scanNewProductButton) scanNewProductButton.addEventListener("click", ()=>openBarcodeScanner("newProduct"));
     $("btnScannerClose").addEventListener("click", closeBarcodeScanner);
@@ -2478,7 +2516,7 @@ To skasuje też ich pozycje w bazie.`)) return;
     // Register service worker
     if("serviceWorker" in navigator){
       // Cache-bust SW itself to ensure Chrome/iOS fetches the newest worker.
-      navigator.serviceWorker.register("./sw.js?v=20261013e").catch(()=>{});
+      navigator.serviceWorker.register("./sw.js?v=20261013f").catch(()=>{});
     }
   }
 

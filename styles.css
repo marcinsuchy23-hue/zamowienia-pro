@@ -120,6 +120,12 @@ body{
 .catalog-form-actions{margin-top:12px}
 
 .field{flex:1; min-width:140px}
+.search-wrap{position:relative;width:100%;min-width:0}
+.search-wrap #filterSearch{width:100%;min-width:0;padding-right:92px}
+.search-tool-button{position:absolute;top:50%;transform:translateY(-50%);width:34px;height:34px;padding:0;border:0;border-radius:50%;background:rgba(255,255,255,.12);color:var(--text);font-size:19px;line-height:1;cursor:pointer;display:grid;place-items:center}
+.search-tool-button--camera{right:7px}
+.search-tool-button--voice{right:47px}
+.search-tool-button:active{background:rgba(139,92,246,.3)}
 label{display:block; color:var(--muted); font-size:12px; font-weight:800; margin:0 0 6px}
 input,select,textarea{
   width:100%;
@@ -382,8 +388,6 @@ textarea{
 .order-row3 input{min-width:0;}
 #filterSearch{width:100%; min-width:0;}
 .search-wrap{position:relative; width:100%; min-width:0}
-.search-wrap #filterSearch{padding-right:52px}
-.search-wrap #btnScanBarcode{position:absolute; top:50%; right:7px; transform:translateY(-50%); width:34px; height:34px; border:0; border-radius:50%; background:rgba(255,255,255,.12); color:var(--text); font-size:20px; line-height:1; cursor:pointer}
 #btnCart{flex:0 0 auto; white-space:nowrap;}
   .order-row3 .field{min-width:0;}
   .order-row3 input{min-width:0; width:100%;}
