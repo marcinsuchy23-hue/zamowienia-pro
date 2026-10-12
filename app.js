@@ -677,6 +677,16 @@ function ensureInputVisible(el){
     if(id === "panelExport") renderExport();
   }
 
+  // Update the visible panel immediately as well as the URL. Some browser/PWA
+  // shells defer or suppress hashchange in edge cases, so navigation buttons
+  // must not depend on that event to switch screens.
+  function navigateToRoute(route, updateHash=true){
+    const panels = { order:"panelOrder", catalog:"panelCatalog", export:"panelExport" };
+    const key = panels[route] ? route : "order";
+    if(updateHash && window.location.hash !== `#${key}`) window.location.hash = key;
+    showPanel(panels[key]);
+  }
+
   function renderFilters(){
 	  // Sekcja
 	  const selSec = $("filterSection");
@@ -1169,17 +1179,24 @@ g.appendChild(r);
 
   function renderCatalog(){
     const list = $("catalogList");
-    const ordered = new Set(state.order.items.map(it => (it.name||"").toLowerCase()));
     list.innerHTML = "";
-    const arr = [...state.catalog].sort((a,b)=>(a.category||"").localeCompare(b.category||"","pl") || (a.name||"").localeCompare(b.name||"","pl"));
+    const inCart = new Set(state.order.items.map(it =>
+      norm(it.name).toLocaleLowerCase("pl-PL") + "||" + norm(it.category).toLocaleLowerCase("pl-PL")
+    ));
+    const arr = [...state.catalog]
+      .filter(p => !inCart.has(norm(p.name).toLocaleLowerCase("pl-PL") + "||" + norm(p.category).toLocaleLowerCase("pl-PL")))
+      .sort((a,b)=>(a.category||"").localeCompare(b.category||"","pl") || (a.name||"").localeCompare(b.name||"","pl"));
     if(!arr.length){
-      list.innerHTML = `<div class="card"><div class="small">Brak produktów. Dodaj je powyżej albo kliknij „Wgraj przykładowe”.</div></div>`;
+      const message = state.catalog.length
+        ? "Wszystkie produkty z bazy są już w koszyku. Po usunięciu ich z koszyka pojawią się tu ponownie."
+        : "Brak produktów. Dodaj je powyżej albo kliknij „Wgraj przykładowe”.";
+      list.innerHTML = `<div class="card"><div class="small">${message}</div></div>`;
       return;
     }
 
     for(const p of arr){
       const row = document.createElement("div");
-      row.className = "item" + (ordered.has((p.name||"").toLowerCase()) ? " item--inCart" : "");
+      row.className = "item";
       row.innerHTML = `
         <div class="item__left">
           <div class="item__name">${escapeHtml(p.name)}</div>
@@ -1263,7 +1280,7 @@ g.appendChild(r);
 
   
   function openExport(){
-    showPanel("panelExport");
+    navigateToRoute("export");
     renderExport();
     renderBasket();
   }
@@ -2282,7 +2299,7 @@ function renderExport(){
     
     if(document.getElementById("btnNewOrder2")) $("btnNewOrder2").addEventListener("click", newOrder);
     if(document.getElementById("btnClearCart")) $("btnClearCart").addEventListener("click", () => { if(confirm("Wyczyścić koszyk?")){ state.order.items=[]; save(); renderAll(); toast("Koszyk wyczyszczony"); } });
-$("btnBack").addEventListener("click", () => showPanel("panelOrder"));
+$("btnBack").addEventListener("click", () => navigateToRoute("order"));
 
     $("btnCopy").addEventListener("click", copyExport);
     const btnPrintHurt = document.getElementById("btnPrintHurt");
@@ -2379,10 +2396,10 @@ To skasuje też ich pozycje w bazie.`)) return;
 
     // Baza produktów (przeniesiona do koszyka)
     const btnGoCatalogFromCart = document.getElementById("btnGoCatalogFromCart");
-    if(btnGoCatalogFromCart) btnGoCatalogFromCart.addEventListener("click", () => (location.hash = "catalog"));
+    if(btnGoCatalogFromCart) btnGoCatalogFromCart.addEventListener("click", () => navigateToRoute("catalog"));
 
     const btnBackFromCatalog = document.getElementById("btnBackFromCatalog");
-    if(btnBackFromCatalog) btnBackFromCatalog.addEventListener("click", () => (location.hash = "order"));
+    if(btnBackFromCatalog) btnBackFromCatalog.addEventListener("click", () => navigateToRoute("order"));
 
     const btnImportCatalog = document.getElementById("btnImportCatalog");
     if(btnImportCatalog) btnImportCatalog.addEventListener("click", importCatalogFromGoogleSheets);
@@ -2395,23 +2412,21 @@ To skasuje też ich pozycje w bazie.`)) return;
     // Simple navigation via hash
     window.addEventListener("hashchange", () => {
       const h = location.hash.replace("#","") || "order";
-      if(h === "catalog") showPanel("panelCatalog");
-      else if(h === "export") showPanel("panelExport");
-      else showPanel("panelOrder");
+      navigateToRoute(h, false);
     });
 
     // Add a simple bottom nav for small screens by gestures: swipe? keep simple
     // Use keyboard shortcuts on desktop
     document.addEventListener("keydown", (e) => {
-      if(e.ctrlKey && e.key === "1") location.hash = "order";
-      if(e.ctrlKey && e.key === "2") location.hash = "catalog";
-      if(e.ctrlKey && e.key === "3") location.hash = "export";
+      if(e.ctrlKey && e.key === "1") navigateToRoute("order");
+      if(e.ctrlKey && e.key === "2") navigateToRoute("catalog");
+      if(e.ctrlKey && e.key === "3") navigateToRoute("export");
     });
 
     // Register service worker
     if("serviceWorker" in navigator){
       // Cache-bust SW itself to ensure Chrome/iOS fetches the newest worker.
-      navigator.serviceWorker.register("./sw.js?v=20261012n").catch(()=>{});
+      navigator.serviceWorker.register("./sw.js?v=20261013a").catch(()=>{});
     }
   }
 
@@ -2609,6 +2624,8 @@ To skasuje też ich pozycje w bazie.`)) return;
     ensureSeed(); // comment this out if you don't want starter catalog
     renderAll();
     wire();
+    const initialRoute = (location.hash || "#order").replace("#", "");
+    navigateToRoute(initialRoute, false);
     window.addEventListener("online", flushCatalogWrites);
     setTimeout(flushCatalogWrites, 1200);
     // LIVE init

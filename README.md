@@ -29,6 +29,7 @@ Najlepiej wrzucić na hosting (darmowy):
 - Eksport tekstu + zapis PDF przez drukowanie (Android/iPhone)
 - „Nowe zamówienie” czyści koszyk
 - Pole „Twoje imię” (kto dodaje)
+- W Bazie produktów ukrywa pozycje już dodane do koszyka
 
 ## Ważne
 Ta wersja zapisuje dane w pamięci przeglądarki (localStorage).
