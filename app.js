@@ -814,15 +814,33 @@ function ensureInputVisible(el){
   }
 
   function mergeQty(oldQ, addQ){
-    // Simple logic: if both are "number+unit" with same unit, add; otherwise concat " + ".
+    // Convert compatible mass/volume units before adding shared-cart quantities.
     const a = parseQty(oldQ);
     const b = parseQty(addQ);
-    if(a && b && a.num != null && b.num != null && (a.unit||"") === (b.unit||"")){
-      const n = a.num + b.num;
-      return formatNum(n) + (a.unit || "");
+    if(a && b && a.num != null && b.num != null){
+      const ua = unitInfo(a.unit), ub = unitInfo(b.unit);
+      if(ua && ub && ua.group === ub.group){
+        // Keep the larger of the entered units (kg over dag over g; l over ml).
+        const target = ua.factor >= ub.factor ? ua : ub;
+        const total = (a.num * ua.factor + b.num * ub.factor) / target.factor;
+        return formatNum(total) + target.label;
+      }
+      if((a.unit||"") === (b.unit||"")) return formatNum(a.num + b.num) + (a.unit || "");
     }
     if(!norm(oldQ)) return norm(addQ);
     return norm(oldQ) + " + " + norm(addQ);
+  }
+
+  function unitInfo(unit){
+    const u = norm(unit).toLowerCase().replace(/\s+/g, "");
+    const units = {
+      kg:{group:"mass",factor:1000,label:"kg"}, kilogram:{group:"mass",factor:1000,label:"kg"}, kilogramy:{group:"mass",factor:1000,label:"kg"},
+      g:{group:"mass",factor:1,label:"g"}, gram:{group:"mass",factor:1,label:"g"}, gramy:{group:"mass",factor:1,label:"g"},
+      dag:{group:"mass",factor:10,label:"dag"}, dkg:{group:"mass",factor:10,label:"dag"},
+      l:{group:"volume",factor:1000,label:"l"}, litr:{group:"volume",factor:1000,label:"l"}, litry:{group:"volume",factor:1000,label:"l"},
+      ml:{group:"volume",factor:1,label:"ml"}, mililitr:{group:"volume",factor:1,label:"ml"}, mililitry:{group:"volume",factor:1,label:"ml"}
+    };
+    return units[u] || null;
   }
 
   function parseQty(s){
@@ -2139,7 +2157,7 @@ To skasuje też ich pozycje w bazie.`)) return;
     // Register service worker
     if("serviceWorker" in navigator){
       // Cache-bust SW itself to ensure Chrome/iOS fetches the newest worker.
-      navigator.serviceWorker.register("./sw.js?v=20260106i").catch(()=>{});
+      navigator.serviceWorker.register("./sw.js?v=20261012a").catch(()=>{});
     }
   }
 
