@@ -352,6 +352,7 @@ function ensureInputVisible(el){
   // --- mobile UX: keep last interacted row visible across re-renders (iOS keyboard / sticky header) ---
   let lastActionKey = "";
   let lastActionFocus = false;
+  let focusSearchAfterAdd = false;
 
   const state = {
     settings: { userName: "", restaurant: "Zamówienia PRO", sections: DEFAULT_SECTIONS.slice(), uiScale: 1 },
@@ -731,6 +732,9 @@ function ensureInputVisible(el){
           if(!validateQty()) return;
           lastActionKey = key;
           lastActionFocus = true;
+          focusSearchAfterAdd = true;
+          const searchEl = $("filterSearch");
+          if(searchEl) searchEl.value = "";
           rememberScroll();
           addToOrder(p, qty);
           row.classList.add("item--flash");
@@ -738,10 +742,12 @@ function ensureInputVisible(el){
           // Keep keyboard open and keep editing context visible
           qtyEl.value = "";
           setTimeout(()=>{
-            try{ qtyEl.focus({ preventScroll:true }); }catch(e){ try{ qtyEl.focus(); }catch(e2){} }
-            ensureInputVisible(qtyEl);
-          }, 30);
-          setTimeout(()=>ensureInputVisible(qtyEl), 160);
+            const search = $("filterSearch");
+            if(search){
+              try{ search.focus({ preventScroll:true }); }catch(e){ try{ search.focus(); }catch(e2){} }
+            }
+            focusSearchAfterAdd = false;
+          }, 50);
         });
       }
 
@@ -785,7 +791,7 @@ function ensureInputVisible(el){
 
     // If user is editing a quantity, re-focus the same row after re-render (Safari/iOS loses focus on DOM rebuild)
     try{
-      if(lastActionFocus && keepKey){
+      if(lastActionFocus && keepKey && !focusSearchAfterAdd){
         const rowEl2 = document.querySelector(`.item[data-key="${cssEscape(keepKey)}"]`);
         const input2 = rowEl2 ? rowEl2.querySelector('input.qty') : null;
         if(input2){
@@ -2189,7 +2195,7 @@ To skasuje też ich pozycje w bazie.`)) return;
     // Register service worker
     if("serviceWorker" in navigator){
       // Cache-bust SW itself to ensure Chrome/iOS fetches the newest worker.
-      navigator.serviceWorker.register("./sw.js?v=20261012b").catch(()=>{});
+      navigator.serviceWorker.register("./sw.js?v=20261012c").catch(()=>{});
     }
   }
 
