@@ -377,6 +377,24 @@ function ensureInputVisible(el){
 
   function norm(s){ return String(s||"").replace(/\s+/g," ").trim(); }
   function capFirst(s){ s = norm(s); return s ? s.charAt(0).toUpperCase() + s.slice(1) : ""; }
+  function parseBarcodeList(value){
+    const values = Array.isArray(value) ? value : [value];
+    const out = [];
+    for(const entry of values){
+      for(const part of String(entry || "").split(/[;,\n]+/)){
+        const code = norm(part).replace(/\s+/g, "");
+        if(code && !out.includes(code)) out.push(code);
+      }
+    }
+    return out;
+  }
+  function productBarcodes(product){
+    return parseBarcodeList([...(Array.isArray(product?.barcodes) ? product.barcodes : []), product?.barcode || ""]);
+  }
+  function setProductBarcodes(product, codes){
+    product.barcodes = parseBarcodeList(codes);
+    product.barcode = product.barcodes[0] || ""; // Keep compatibility with older app versions and Sheets.
+  }
 
   function load() {
     try{
@@ -393,6 +411,7 @@ function ensureInputVisible(el){
     state.settings.sections ||= DEFAULT_SECTIONS.slice();
     if(!state.settings.uiScale) state.settings.uiScale = 1;
     state.catalog ||= [];
+    for(const product of state.catalog){ setProductBarcodes(product, productBarcodes(product)); }
     state.order ||= { items: [] };
     state.order.items ||= [];
   }
@@ -582,21 +601,25 @@ function ensureInputVisible(el){
     if(!code){ toast("Nie odczytano kodu"); return; }
     closeBarcodeScanner();
     if(target === "newProduct"){
-      $("newProdBarcode").value = code;
-      toast("Kod wpisany do formularza produktu — zatwierdź Dodaj produkt");
+      const codes = parseBarcodeList($("newProdBarcode").value);
+      if(!codes.includes(code)) codes.push(code);
+      $("newProdBarcode").value = codes.join(", ");
+      toast(`Dodano kod (${codes.length}) — możesz zeskanować następny`);
       return;
     }
-    let product = state.catalog.find(p=>norm(p.barcode).replace(/\s+/g, "") === code);
+    if(String(target).startsWith("addCode:")){
+      const product = state.catalog.find(p=>p.id === String(target).slice(8));
+      if(!product){ toast("Nie znaleziono produktu"); return; }
+      addBarcodeToProduct(product, code);
+      return;
+    }
+    let product = state.catalog.find(p=>productBarcodes(p).includes(code));
     if(!product){
       const productName = prompt(`Nie ma jeszcze produktu przypisanego do kodu ${code}.\nWpisz dokładną nazwę produktu z bazy, aby zapisać to przypisanie:`);
       if(productName === null) return;
       product = state.catalog.find(p=>norm(p.name).toLocaleLowerCase("pl-PL") === norm(productName).toLocaleLowerCase("pl-PL"));
       if(!product){ toast("Nie znaleziono produktu o takiej nazwie"); return; }
-      product.barcode = code;
-      save();
-      queueCatalogWrite(product);
-      renderCatalog();
-      toast(`Kod przypisany do: ${product.name}`);
+      if(!addBarcodeToProduct(product, code)) return;
     }
     const search = $("filterSearch");
     $("filterSection").value = "__ALL__";
@@ -613,8 +636,30 @@ function ensureInputVisible(el){
     toast(`Znaleziono: ${product.name} — wpisz ilość`);
   }
 
+  function addBarcodeToProduct(product, code){
+    const normalizedCode = norm(code).replace(/\s+/g, "");
+    if(!normalizedCode){ toast("Wpisz lub zeskanuj kod"); return false; }
+    const owner = state.catalog.find(p=>productBarcodes(p).includes(normalizedCode));
+    if(owner && owner.id !== product.id){ toast(`Ten kod jest już przypisany do produktu: ${owner.name}`); return false; }
+    const codes = productBarcodes(product);
+    if(codes.includes(normalizedCode)){ toast(`Ten kod jest już przypisany do: ${product.name}`); return false; }
+    setProductBarcodes(product, [...codes, normalizedCode]);
+    save();
+    queueCatalogWrite(product);
+    renderCatalog();
+    toast(`Dodano kod do produktu: ${product.name}`);
+    return true;
+  }
+
+  function addBarcodeManually(product){
+    const value = prompt(`Wpisz dodatkowy kod kreskowy dla produktu „${product.name}”:`);
+    if(value === null) return;
+    for(const code of parseBarcodeList(value)) addBarcodeToProduct(product, code);
+  }
+
   function startVoiceSearch(){
     const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    const isMobile = isIOS || /Android/i.test(navigator.userAgent);
     // iOS keyboard dictation is the reliable no-cost option in Safari/PWAs.
     // Web Speech recognition can capture audio there but silently return no text.
     if(isIOS){
@@ -623,7 +668,8 @@ function ensureInputVisible(el){
     }
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if(!SpeechRecognition){
-      toast("Ta przeglądarka nie obsługuje rozpoznawania mowy. Spróbuj w Safari na iPhonie albo w Chrome na Androidzie.");
+      if(isMobile) focusSearchForKeyboardDictation();
+      else toast("Ta przeglądarka nie obsługuje rozpoznawania mowy. Spróbuj w Chrome albo Safari.");
       return;
     }
     if(voiceSearchRecognition){
@@ -650,6 +696,10 @@ function ensureInputVisible(el){
     recognition.onerror = event=>{
       hadError = true;
       clearTimeout(voiceSearchTimeout);
+      if(isMobile && ["not-allowed","service-not-allowed","network","language-not-supported"].includes(event.error)){
+        focusSearchForKeyboardDictation();
+        return;
+      }
       const messages = {
         "not-allowed":"Zezwól aplikacji lub przeglądarce na użycie mikrofonu.",
         "service-not-allowed":"Przeglądarka zablokowała usługę rozpoznawania mowy. Sprawdź mikrofon, połączenie internetowe i spróbuj w Chrome.",
@@ -662,7 +712,10 @@ function ensureInputVisible(el){
     recognition.onend = ()=>{
       clearTimeout(voiceSearchTimeout);
       if(voiceSearchRecognition === recognition) voiceSearchRecognition = null;
-      if(!receivedResult && !hadError) toast("Nasłuch zakończył się bez tekstu. Sprawdź połączenie internetowe i uprawnienie mikrofonu.");
+      if(!receivedResult && !hadError){
+        if(isMobile) focusSearchForKeyboardDictation();
+        else toast("Nasłuch zakończył się bez tekstu. Sprawdź połączenie internetowe i uprawnienie mikrofonu.");
+      }
     };
     try{
       recognition.start();
@@ -672,10 +725,16 @@ function ensureInputVisible(el){
         hadError = true;
         try{ recognition.stop(); }catch(e){}
         voiceSearchRecognition = null;
-        toast("Mikrofon działa, ale przeglądarka nie zwróciła tekstu. Sprawdź internet i spróbuj w Chrome.");
+        if(isMobile) focusSearchForKeyboardDictation();
+        else toast("Mikrofon działa, ale przeglądarka nie zwróciła tekstu. Sprawdź internet i spróbuj w Chrome.");
       }, 12000);
     }
-    catch(e){ clearTimeout(voiceSearchTimeout); voiceSearchRecognition = null; toast("Nie można uruchomić rozpoznawania. Sprawdź uprawnienie mikrofonu i spróbuj w Chrome."); }
+    catch(e){
+      clearTimeout(voiceSearchTimeout);
+      voiceSearchRecognition = null;
+      if(isMobile) focusSearchForKeyboardDictation();
+      else toast("Nie można uruchomić rozpoznawania. Sprawdź uprawnienie mikrofonu i spróbuj w Chrome.");
+    }
   }
 
   function focusSearchForKeyboardDictation(){
@@ -683,7 +742,7 @@ function ensureInputVisible(el){
     const hint = $("voiceSearchHint");
     if(hint) hint.classList.remove("hidden");
     input.focus();
-    toast("Teraz stuknij mikrofon na klawiaturze iPhone’a i powiedz nazwę.");
+    toast("Teraz stuknij mikrofon na klawiaturze telefonu i powiedz nazwę.");
   }
 
   function lastOrderTime(){
@@ -1292,17 +1351,22 @@ g.appendChild(r);
     for(const p of arr){
       const row = document.createElement("div");
       row.className = "item";
+      const codes = productBarcodes(p);
       row.innerHTML = `
         <div class="item__left">
           <div class="item__name">${escapeHtml(p.name)}</div>
           <div class="item__meta">${escapeHtml(capFirst(p.category) || "Inne")}</div>
-          ${p.barcode ? `<div class="item__meta">Kod: ${escapeHtml(p.barcode)}</div>` : ""}
+          ${codes.length ? `<div class="item__meta">Kody: ${codes.map(escapeHtml).join(" · ")}</div>` : `<div class="item__meta">Brak przypisanego kodu</div>`}
         </div>
         <div class="item__right">
-          <button class="smallbtn danger" title="Usuń">🗑</button>
+          <button class="smallbtn catalog-add-code" type="button" title="Zeskanuj kolejny kod dla tego produktu" aria-label="Zeskanuj kolejny kod dla ${escapeHtml(p.name)}">📷 Kod</button>
+          <button class="smallbtn catalog-manual-code" type="button" title="Wpisz kolejny kod dla tego produktu">＋ Kod</button>
+          <button class="smallbtn danger catalog-delete" type="button" title="Usuń">🗑</button>
         </div>
       `;
-      const del = row.querySelector("button");
+      row.querySelector(".catalog-add-code").addEventListener("click", ()=>openBarcodeScanner(`addCode:${p.id}`));
+      row.querySelector(".catalog-manual-code").addEventListener("click", ()=>addBarcodeManually(p));
+      const del = row.querySelector(".catalog-delete");
       del.addEventListener("click", () => {
         if(!confirm(`Usunąć z bazy: ${p.name}?`)) return;
         state.catalog = state.catalog.filter(x => x.id !== p.id);
@@ -2120,7 +2184,7 @@ function renderSheetConnectionStatus(){
   function addProductFromForm(){
     const name = capFirst($("newProdName").value.toLowerCase());
     const cat = capFirst($("newProdCat").value);
-    const barcode = norm($("newProdBarcode").value).replace(/\s+/g, "");
+    const barcodes = parseBarcodeList($("newProdBarcode").value);
 	  const checked = getCheckedSections();
 	  const sections = checked.length ? checked : parseSections($("newProdSections").value);
     if(!name){ toast("Podaj nazwę produktu"); return; }
@@ -2129,12 +2193,10 @@ function renderSheetConnectionStatus(){
     // de-dupe by name+cat
     const exists = state.catalog.find(p => capFirst(p.name) === name && capFirst(p.category) === cat);
     if(exists){ toast("Taki produkt już jest"); return; }
-    if(barcode && state.catalog.some(p => norm(p.barcode).replace(/\s+/g, "") === barcode)){
-      toast("Ten kod kreskowy jest już przypisany do innego produktu");
-      return;
-    }
+    const duplicate = barcodes.find(code => state.catalog.some(p => productBarcodes(p).includes(code)));
+    if(duplicate){ toast(`Kod ${duplicate} jest już przypisany do innego produktu`); return; }
 
-	  const product = { id: uid(), name, category: cat, sections, barcode, createdAt: Date.now() };
+	  const product = { id: uid(), name, category: cat, sections, barcodes, barcode: barcodes[0] || "", createdAt: Date.now() };
 	  state.catalog.push(product);
     $("newProdName").value = "";
     $("newProdCat").value = "";
@@ -2559,7 +2621,7 @@ To skasuje też ich pozycje w bazie.`)) return;
     // Register service worker
     if("serviceWorker" in navigator){
       // Cache-bust SW itself to ensure Chrome/iOS fetches the newest worker.
-      navigator.serviceWorker.register("./sw.js?v=20261013j").catch(()=>{});
+      navigator.serviceWorker.register("./sw.js?v=20261013l").catch(()=>{});
     }
   }
 
@@ -2580,7 +2642,7 @@ To skasuje też ich pozycje w bazie.`)) return;
     if(idxName === -1 || idxCategory === -1) throw new Error("CSV musi mieć kolumny name i category");
 
     const oldBarcodeByProduct = new Map((state.catalog||[]).map(p=>[
-      (norm(p.name).toLocaleLowerCase("pl-PL")+"||"+norm(p.category).toLocaleLowerCase("pl-PL")), p.barcode||""
+      (norm(p.name).toLocaleLowerCase("pl-PL")+"||"+norm(p.category).toLocaleLowerCase("pl-PL")), productBarcodes(p).join(";")
     ]));
     const out = [];
     for(let i=1;i<rows.length;i++){
@@ -2590,8 +2652,8 @@ To skasuje też ich pozycje w bazie.`)) return;
       if(!name || !category) continue;
       const sections = idxSections >= 0 ? norm(r[idxSections] || "") : "";
       const productKey = norm(name).toLocaleLowerCase("pl-PL")+"||"+norm(category).toLocaleLowerCase("pl-PL");
-      const barcode = idxBarcode >= 0 ? (norm(r[idxBarcode]||"").replace(/\s+/g, "") || oldBarcodeByProduct.get(productKey) || "") : (oldBarcodeByProduct.get(productKey) || "");
-      out.push({ id: uid(), name, category, sections, barcode, createdAt: Date.now() });
+      const barcodes = parseBarcodeList(idxBarcode >= 0 ? (norm(r[idxBarcode]||"") || oldBarcodeByProduct.get(productKey) || "") : (oldBarcodeByProduct.get(productKey) || ""));
+      out.push({ id: uid(), name, category, sections, barcodes, barcode: barcodes[0] || "", createdAt: Date.now() });
     }
     state.catalog = out;
     if(saveUrl){
@@ -2640,7 +2702,7 @@ To skasuje też ich pozycje w bazie.`)) return;
       const name = csvEsc(p.name);
       const cat = csvEsc(p.category);
       const sec = csvEsc(Array.isArray(p.sections) ? p.sections.join(";") : String(p.sections || ""));
-      const barcode = csvEsc(p.barcode || "");
+      const barcode = csvEsc(productBarcodes(p).join(";"));
       lines.push([name,cat,sec,barcode].join(","));
     }
     const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
@@ -2667,7 +2729,7 @@ To skasuje też ich pozycje w bazie.`)) return;
     const key = catalogWriteKey(product);
     const pending = state.settings.pendingSheetWrites;
     const existing = pending.findIndex(x => catalogWriteKey(x.product) === key);
-    const entry = { product: { name: product.name, category: product.category, sections: parseSections(product.sections), barcode: product.barcode || "" }, queuedAt: Date.now() };
+    const entry = { product: { name: product.name, category: product.category, sections: parseSections(product.sections), barcode: productBarcodes(product).join(";") }, queuedAt: Date.now() };
     if(existing >= 0) pending[existing] = entry;
     else pending.push(entry);
     save();

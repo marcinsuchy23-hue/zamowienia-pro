@@ -8,7 +8,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon-192.png">
   <!-- cache-bust for GitHub Pages / iOS Safari (updates show instantly) -->
-  <link rel="stylesheet" href="styles.css?v=20261013j" />
+  <link rel="stylesheet" href="styles.css?v=20261013l" />
 </head>
 <body>
   <div id="uiRoot">
@@ -59,7 +59,7 @@
               <button class="search-tool-button search-tool-button--voice" id="btnVoiceSearch" type="button" aria-label="Wyszukiwanie głosowe" title="Powiedz nazwę produktu">🎙️</button>
               <button class="search-tool-button search-tool-button--camera" id="btnScanBarcode" type="button" aria-label="Skanuj kod kreskowy" title="Skanuj kod kreskowy">📷</button>
             </div>
-            <div class="small hidden" id="voiceSearchHint" role="status" style="margin-top:6px">Na iPhonie stuknij mikrofon na klawiaturze, aby podyktować nazwę.</div>
+            <div class="small hidden" id="voiceSearchHint" role="status" style="margin-top:6px">Na telefonie stuknij mikrofon na klawiaturze, aby podyktować nazwę.</div>
           </div>
 </div>
       </div>
@@ -102,9 +102,10 @@
           <div class="field catalog-field-barcode">
             <label>Kod kreskowy (opcjonalnie)</label>
             <div class="catalog-barcode-input">
-              <input id="newProdBarcode" inputmode="numeric" placeholder="Zeskanuj lub wpisz kod" autocomplete="off" />
+              <input id="newProdBarcode" inputmode="numeric" placeholder="Zeskanuj lub wpisz kody" autocomplete="off" />
               <button class="btn" id="btnScanNewProductBarcode" type="button" title="Zeskanuj kod aparatem" aria-label="Zeskanuj kod aparatem">📷</button>
             </div>
+            <div class="small" style="margin-top:6px;opacity:.85">Możesz zeskanować kilka opakowań przed dodaniem produktu. Wpisane kody rozdziel przecinkiem.</div>
           </div>
         </div>
         <div class="row row--gap row--end catalog-form-actions">
@@ -293,7 +294,7 @@
 
   <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore-compat.js"></script>
-<script src="firebase-config.js?v=20261013j"></script>
-<script src="app.js?v=20261013j"></script>
+<script src="firebase-config.js?v=20261013l"></script>
+<script src="app.js?v=20261013l"></script>
 </body>
 </html>

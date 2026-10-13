@@ -24,7 +24,8 @@ Najlepiej wrzucić na hosting (darmowy):
 3. Otwórz link na telefonie → „Dodaj do ekranu głównego”.
 
 ## Funkcje
-- Baza produktów (nazwa + kategoria)
+- Baza produktów (nazwa + kategoria + wiele kodów kreskowych dla jednego produktu)
+- Przy tworzeniu można zeskanować kilka opakowań; przy istniejącym produkcie można dopisać kolejny kod skanerem albo ręcznie
 - Dodawanie do koszyka ilości (sumuje, gdy ten sam produkt)
 - Eksport tekstu + zapis PDF przez drukowanie (Android/iPhone)
 - „Nowe zamówienie” czyści koszyk

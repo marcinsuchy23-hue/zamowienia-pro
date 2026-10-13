@@ -118,6 +118,7 @@ body{
 #secCheckboxes .chip input[type="checkbox"]:checked{background:var(--accent); border-color:var(--accent)}
 #secCheckboxes .chip input[type="checkbox"]:checked::after{content:"✓"; font-size:14px; line-height:1; font-weight:900}
 .catalog-form-actions{margin-top:12px}
+.catalog-add-code,.catalog-manual-code{white-space:nowrap}
 
 .field{flex:1; min-width:140px}
 .search-wrap{position:relative;width:100%;min-width:0}
