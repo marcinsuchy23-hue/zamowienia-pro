@@ -1441,17 +1441,19 @@ g.appendChild(r);
     const esc = value => String(value == null ? "" : value)
       .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "")
       .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&apos;");
-    const sheetRows = rows.map((row,index)=> row.text === ""
-      ? `<row r="${index+1}" ht="8" customHeight="1"/>`
-      : `<row r="${index+1}"${row.style===1 ? ' ht="28" customHeight="1"' : ""}><c r="A${index+1}" t="inlineStr" s="${row.style||0}"><is><t xml:space="preserve">${esc(row.text)}</t></is></c></row>`
-    ).join("");
+    const sheetRows = rows.map((row,index)=>{
+      if(row.text === "") return `<row r="${index+1}" ht="8" customHeight="1"/>`;
+      const a = `<c r="A${index+1}" t="inlineStr" s="${row.style||0}"><is><t xml:space="preserve">${esc(row.text)}</t></is></c>`;
+      const b = row.quantity == null ? "" : `<c r="B${index+1}" t="inlineStr" s="5"><is><t xml:space="preserve">${esc(row.quantity)}</t></is></c>`;
+      return `<row r="${index+1}"${row.style===1 ? ' ht="28" customHeight="1"' : ""}>${a}${b}</row>`;
+    }).join("");
     const files = [
       {name:"[Content_Types].xml", data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>`},
       {name:"_rels/.rels", data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`},
       {name:"xl/workbook.xml", data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Zamówienie" sheetId="1" r:id="rId1"/></sheets></workbook>`},
       {name:"xl/_rels/workbook.xml.rels", data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`},
-      {name:"xl/styles.xml", data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="5"><font><sz val="11"/><name val="Arial"/></font><font><b/><sz val="18"/><name val="Arial"/></font><font><sz val="10"/><name val="Arial"/></font><font><b/><sz val="11"/><name val="Arial"/></font><font><sz val="10"/><name val="Arial"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="5"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="3" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="4" fillId="0" borderId="0" xfId="0"><alignment indent="1" vertical="center"/></xf></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`},
-      {name:"xl/worksheets/sheet1.xml", data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><dimension ref="A1:A${rows.length}"/><sheetViews><sheetView workbookViewId="0"/></sheetViews><cols><col min="1" max="1" width="90" customWidth="1"/></cols><sheetFormatPr defaultRowHeight="18"/><sheetData>${sheetRows}</sheetData></worksheet>`}
+      {name:"xl/styles.xml", data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="5"><font><sz val="11"/><name val="Arial"/></font><font><b/><sz val="18"/><name val="Arial"/></font><font><sz val="10"/><name val="Arial"/></font><font><b/><sz val="11"/><name val="Arial"/></font><font><sz val="10"/><name val="Arial"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="6"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="3" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="4" fillId="0" borderId="0" xfId="0"><alignment indent="1" vertical="center"/></xf><xf numFmtId="0" fontId="4" fillId="0" borderId="0" xfId="0"><alignment vertical="center"/></xf></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`},
+      {name:"xl/worksheets/sheet1.xml", data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><dimension ref="A1:B${rows.length}"/><sheetViews><sheetView workbookViewId="0"/></sheetViews><cols><col min="1" max="1" width="72" customWidth="1"/><col min="2" max="2" width="18" customWidth="1"/></cols><sheetFormatPr defaultRowHeight="18"/><sheetData>${sheetRows}</sheetData></worksheet>`}
     ];
     const encoder = new TextEncoder();
     const crcTable = new Uint32Array(256);
@@ -1498,8 +1500,8 @@ g.appendChild(r);
   function exportOrderToExcel(){
     const out = buildExportText();
     if(!state.order.items || !state.order.items.length){ toast("Koszyk jest pusty — nie ma czego eksportować"); return; }
-    // Keep precisely the information shown in the supplier PDF: title, date,
-    // who ordered, category headings, and product/quantity lines.
+    // Keep precisely the information shown in the supplier PDF, with each
+    // product and its quantity in adjacent spreadsheet cells.
     const title = (LIVE.ready && LIVE.aliasName) ? LIVE.aliasName : out.title;
     const rows = [
       {text:title || "ZAMÓWIENIE", style:1},
@@ -1507,23 +1509,17 @@ g.appendChild(r);
       {text:out.meta || "", style:2},
       {text:"", style:0}
     ];
-    let previousWasContent = true;
-    for(const rawLine of (out.textBody || "").split("\n")){
-      const line = rawLine.trim();
-      if(!line){
-        if(rows.length && rows[rows.length-1].text !== "") rows.push({text:"", style:0});
-        previousWasContent = false;
-        continue;
-      }
-      const category = line.match(/^===\s*(.+?)\s*===$/);
-      if(category){
-        if(previousWasContent && rows[rows.length-1].text !== "") rows.push({text:"", style:0});
-        rows.push({text:category[1].trim().toLocaleUpperCase("pl-PL"), style:3});
-        previousWasContent = true;
-      }else if(line.startsWith("- ")){
-        rows.push({text:`• ${line.slice(2)}`, style:4});
-        previousWasContent = true;
-      }
+    const items = [...state.order.items].sort((a,b)=>(a.category||"").localeCompare(b.category||"","pl") || (a.name||"").localeCompare(b.name||"","pl"));
+    const groups = new Map();
+    for(const item of items){
+      const category = capFirst(item.category) || "Inne";
+      if(!groups.has(category)) groups.set(category, []);
+      groups.get(category).push(item);
+    }
+    for(const [category, group] of groups){
+      if(rows[rows.length-1].text !== "") rows.push({text:"", style:0});
+      rows.push({text:category.toLocaleUpperCase("pl-PL"), style:3});
+      for(const item of group) rows.push({text:`• ${item.name}`, quantity:item.qty, style:4});
     }
     while(rows[rows.length-1].text === "") rows.pop();
     const blob = makeXlsxBlob(rows);
@@ -2724,7 +2720,7 @@ To skasuje też ich pozycje w bazie.`)) return;
     // Register service worker
     if("serviceWorker" in navigator){
       // Cache-bust SW itself to ensure Chrome/iOS fetches the newest worker.
-      navigator.serviceWorker.register("./sw.js?v=20261014b").catch(()=>{});
+      navigator.serviceWorker.register("./sw.js?v=20261014c").catch(()=>{});
     }
   }
 
