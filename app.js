@@ -1437,44 +1437,105 @@ g.appendChild(r);
     return { title:"ZAMÓWIENIE", date:dateStr, meta, textBody, textFull };
   }
 
-  function exportOrderToExcelCsv(){
-    const items = [...(state.order.items || [])].sort((a,b)=>
-      (a.category||"").localeCompare(b.category||"","pl") || (a.name||"").localeCompare(b.name||"","pl")
-    );
-    if(!items.length){ toast("Koszyk jest pusty — nie ma czego eksportować"); return; }
-    const safeCell = value => {
-      let text = String(value == null ? "" : value);
-      if(/^\s*[=+@-]/.test(text)) text = "'" + text;
-      return `"${text.replace(/"/g, '""')}"`;
-    };
-    const t = items.reduce((latest,item)=>Math.max(latest, Number(item.updatedAt)||0), 0);
-    const contributors = uniqueBy();
-    const rows = [
-      ["sep=;"],
-      ["Zamówienie", "ZAMÓWIENIE"],
-      ["Data", t ? fmtDate(t) : fmtDate(Date.now())],
-      ["Zamówione przez", contributors.length ? contributors.join(", ") : "—"],
-      [],
-      ["Sekcja", "Produkt", "Ilość", "Dodane przez", "Ostatnia zmiana"],
-      ...items.map(item => [
-        capFirst(item.category) || "Inne",
-        item.name || "",
-        item.qty || "",
-        item.by || "—",
-        item.updatedAt ? fmtDate(item.updatedAt) : "—"
-      ])
+  function makeXlsxBlob(rows){
+    const esc = value => String(value == null ? "" : value)
+      .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "")
+      .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&apos;");
+    const sheetRows = rows.map((row,index)=> row.text === ""
+      ? `<row r="${index+1}" ht="8" customHeight="1"/>`
+      : `<row r="${index+1}"${row.style===1 ? ' ht="28" customHeight="1"' : ""}><c r="A${index+1}" t="inlineStr" s="${row.style||0}"><is><t xml:space="preserve">${esc(row.text)}</t></is></c></row>`
+    ).join("");
+    const files = [
+      {name:"[Content_Types].xml", data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>`},
+      {name:"_rels/.rels", data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`},
+      {name:"xl/workbook.xml", data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Zamówienie" sheetId="1" r:id="rId1"/></sheets></workbook>`},
+      {name:"xl/_rels/workbook.xml.rels", data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`},
+      {name:"xl/styles.xml", data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="5"><font><sz val="11"/><name val="Arial"/></font><font><b/><sz val="18"/><name val="Arial"/></font><font><sz val="10"/><name val="Arial"/></font><font><b/><sz val="11"/><name val="Arial"/></font><font><sz val="10"/><name val="Arial"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="5"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="3" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="4" fillId="0" borderId="0" xfId="0"><alignment indent="1" vertical="center"/></xf></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`},
+      {name:"xl/worksheets/sheet1.xml", data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><dimension ref="A1:A${rows.length}"/><sheetViews><sheetView workbookViewId="0"/></sheetViews><cols><col min="1" max="1" width="90" customWidth="1"/></cols><sheetFormatPr defaultRowHeight="18"/><sheetData>${sheetRows}</sheetData></worksheet>`}
     ];
-    const csv = "\uFEFF" + rows.map(row=>row.map(safeCell).join(";")).join("\r\n");
-    const blob = new Blob([csv], {type:"text/csv;charset=utf-8"});
+    const encoder = new TextEncoder();
+    const crcTable = new Uint32Array(256);
+    for(let n=0;n<256;n++){
+      let c=n;
+      for(let k=0;k<8;k++) c=(c&1) ? (0xEDB88320^(c>>>1)) : (c>>>1);
+      crcTable[n]=c>>>0;
+    }
+    const crc32 = bytes => {
+      let crc=0xFFFFFFFF;
+      for(const byte of bytes) crc=crcTable[(crc^byte)&0xFF]^(crc>>>8);
+      return (crc^0xFFFFFFFF)>>>0;
+    };
+    const u16 = value => [value&255,(value>>>8)&255];
+    const u32 = value => [value&255,(value>>>8)&255,(value>>>16)&255,(value>>>24)&255];
+    const concat = arrays => {
+      const size=arrays.reduce((n,a)=>n+a.length,0), out=new Uint8Array(size);
+      let offset=0; for(const part of arrays){ out.set(part,offset); offset+=part.length; }
+      return out;
+    };
+    const local=[], central=[];
+    let offset=0;
+    for(const file of files){
+      const name=encoder.encode(file.name), data=encoder.encode(file.data), crc=crc32(data), localOffset=offset;
+      const header=new Uint8Array([
+        ...u32(0x04034B50),...u16(20),...u16(0),...u16(0),...u16(0),...u16(33),
+        ...u32(crc),...u32(data.length),...u32(data.length),...u16(name.length),...u16(0)
+      ]);
+      const localPart=concat([header,name,data]); local.push(localPart); offset+=localPart.length;
+      const centralHeader=new Uint8Array([
+        ...u32(0x02014B50),...u16(20),...u16(20),...u16(0),...u16(0),...u16(0),...u16(33),
+        ...u32(crc),...u32(data.length),...u32(data.length),...u16(name.length),...u16(0),...u16(0),
+        ...u16(0),...u16(0),...u32(0),...u32(localOffset)
+      ]);
+      central.push(concat([centralHeader,name]));
+    }
+    const centralBytes=concat(central), end=new Uint8Array([
+      ...u32(0x06054B50),...u16(0),...u16(0),...u16(files.length),...u16(files.length),
+      ...u32(centralBytes.length),...u32(offset),...u16(0)
+    ]);
+    return new Blob([concat([...local,centralBytes,end])], {type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+  }
+
+  function exportOrderToExcel(){
+    const out = buildExportText();
+    if(!state.order.items || !state.order.items.length){ toast("Koszyk jest pusty — nie ma czego eksportować"); return; }
+    // Keep precisely the information shown in the supplier PDF: title, date,
+    // who ordered, category headings, and product/quantity lines.
+    const title = (LIVE.ready && LIVE.aliasName) ? LIVE.aliasName : out.title;
+    const rows = [
+      {text:title || "ZAMÓWIENIE", style:1},
+      {text:`Data: ${out.date || "—"}`, style:2},
+      {text:out.meta || "", style:2},
+      {text:"", style:0}
+    ];
+    let previousWasContent = true;
+    for(const rawLine of (out.textBody || "").split("\n")){
+      const line = rawLine.trim();
+      if(!line){
+        if(rows.length && rows[rows.length-1].text !== "") rows.push({text:"", style:0});
+        previousWasContent = false;
+        continue;
+      }
+      const category = line.match(/^===\s*(.+?)\s*===$/);
+      if(category){
+        if(previousWasContent && rows[rows.length-1].text !== "") rows.push({text:"", style:0});
+        rows.push({text:category[1].trim().toLocaleUpperCase("pl-PL"), style:3});
+        previousWasContent = true;
+      }else if(line.startsWith("- ")){
+        rows.push({text:`• ${line.slice(2)}`, style:4});
+        previousWasContent = true;
+      }
+    }
+    while(rows[rows.length-1].text === "") rows.pop();
+    const blob = makeXlsxBlob(rows);
     const link = document.createElement("a");
     const now = new Date();
     const date = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}`;
     link.href = URL.createObjectURL(blob);
-    link.download = `zamowienie-${date}.csv`;
+    link.download = `zamowienie-${date}.xlsx`;
     document.body.appendChild(link);
     link.click();
     setTimeout(()=>{ URL.revokeObjectURL(link.href); link.remove(); }, 0);
-    toast("Pobrano zamówienie do Excela");
+    toast("Pobrano zamówienie Excel");
   }
 
   
@@ -2536,7 +2597,7 @@ function renderSheetConnectionStatus(){
 
     $("btnCopy").addEventListener("click", copyExport);
     const btnExportOrderExcel = document.getElementById("btnExportOrderExcel");
-    if(btnExportOrderExcel) btnExportOrderExcel.addEventListener("click", exportOrderToExcelCsv);
+    if(btnExportOrderExcel) btnExportOrderExcel.addEventListener("click", exportOrderToExcel);
     const btnPrintHurt = document.getElementById("btnPrintHurt");
     if(btnPrintHurt) btnPrintHurt.addEventListener("click", printExportHurt);
 
@@ -2663,7 +2724,7 @@ To skasuje też ich pozycje w bazie.`)) return;
     // Register service worker
     if("serviceWorker" in navigator){
       // Cache-bust SW itself to ensure Chrome/iOS fetches the newest worker.
-      navigator.serviceWorker.register("./sw.js?v=20261014a").catch(()=>{});
+      navigator.serviceWorker.register("./sw.js?v=20261014b").catch(()=>{});
     }
   }
 
