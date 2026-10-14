@@ -1437,6 +1437,46 @@ g.appendChild(r);
     return { title:"ZAMÓWIENIE", date:dateStr, meta, textBody, textFull };
   }
 
+  function exportOrderToExcelCsv(){
+    const items = [...(state.order.items || [])].sort((a,b)=>
+      (a.category||"").localeCompare(b.category||"","pl") || (a.name||"").localeCompare(b.name||"","pl")
+    );
+    if(!items.length){ toast("Koszyk jest pusty — nie ma czego eksportować"); return; }
+    const safeCell = value => {
+      let text = String(value == null ? "" : value);
+      if(/^\s*[=+@-]/.test(text)) text = "'" + text;
+      return `"${text.replace(/"/g, '""')}"`;
+    };
+    const t = items.reduce((latest,item)=>Math.max(latest, Number(item.updatedAt)||0), 0);
+    const contributors = uniqueBy();
+    const rows = [
+      ["sep=;"],
+      ["Zamówienie", "ZAMÓWIENIE"],
+      ["Data", t ? fmtDate(t) : fmtDate(Date.now())],
+      ["Zamówione przez", contributors.length ? contributors.join(", ") : "—"],
+      [],
+      ["Sekcja", "Produkt", "Ilość", "Dodane przez", "Ostatnia zmiana"],
+      ...items.map(item => [
+        capFirst(item.category) || "Inne",
+        item.name || "",
+        item.qty || "",
+        item.by || "—",
+        item.updatedAt ? fmtDate(item.updatedAt) : "—"
+      ])
+    ];
+    const csv = "\uFEFF" + rows.map(row=>row.map(safeCell).join(";")).join("\r\n");
+    const blob = new Blob([csv], {type:"text/csv;charset=utf-8"});
+    const link = document.createElement("a");
+    const now = new Date();
+    const date = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}`;
+    link.href = URL.createObjectURL(blob);
+    link.download = `zamowienie-${date}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    setTimeout(()=>{ URL.revokeObjectURL(link.href); link.remove(); }, 0);
+    toast("Pobrano zamówienie do Excela");
+  }
+
   
   function openExport(){
     navigateToRoute("export");
@@ -2495,6 +2535,8 @@ function renderSheetConnectionStatus(){
     $("btnGoExportFromCart").addEventListener("click", openExport);
 
     $("btnCopy").addEventListener("click", copyExport);
+    const btnExportOrderExcel = document.getElementById("btnExportOrderExcel");
+    if(btnExportOrderExcel) btnExportOrderExcel.addEventListener("click", exportOrderToExcelCsv);
     const btnPrintHurt = document.getElementById("btnPrintHurt");
     if(btnPrintHurt) btnPrintHurt.addEventListener("click", printExportHurt);
 
@@ -2621,7 +2663,7 @@ To skasuje też ich pozycje w bazie.`)) return;
     // Register service worker
     if("serviceWorker" in navigator){
       // Cache-bust SW itself to ensure Chrome/iOS fetches the newest worker.
-      navigator.serviceWorker.register("./sw.js?v=20261013l").catch(()=>{});
+      navigator.serviceWorker.register("./sw.js?v=20261014a").catch(()=>{});
     }
   }
 

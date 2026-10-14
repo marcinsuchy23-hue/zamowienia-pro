@@ -28,6 +28,7 @@ Najlepiej wrzucić na hosting (darmowy):
 - Przy tworzeniu można zeskanować kilka opakowań; przy istniejącym produkcie można dopisać kolejny kod skanerem albo ręcznie
 - Dodawanie do koszyka ilości (sumuje, gdy ten sam produkt)
 - Eksport tekstu + zapis PDF przez drukowanie (Android/iPhone)
+- Eksport całego koszyka do pliku CSV otwieranego w Excelu (sekcja, produkt, ilość, osoba i data zmiany)
 - „Nowe zamówienie” czyści koszyk
 - Pole „Twoje imię” (kto dodaje)
 - W Bazie produktów ukrywa pozycje już dodane do koszyka
